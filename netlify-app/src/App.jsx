@@ -1,0 +1,1512 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CalendarDays, CalendarPlus, Brush, Wrench, LogIn, LogOut, MoreHorizontal, Home, ClipboardCheck, Wallet, TrendingUp, TrendingDown, ListChecks, CheckCircle2, Circle, X, Package, Minus, Search, Link2 } from "lucide-react";
+import { storage } from "./storage";
+
+// ---------- Config ----------
+const PROPERTIES = [
+  { id: "chale-a", name: "Chalé 1065", color: "#0F766E", soft: "#E6F4F2" },
+  { id: "chale-b", name: "Chalé 1022", color: "#B45309", soft: "#FBF0E4" },
+  { id: "chale-c", name: "Chalé 1017", color: "#6D28D9", soft: "#EFEAFB" },
+];
+
+const TASK_TYPES = [
+  { id: "limpeza", label: "Limpeza", icon: Brush },
+  { id: "manutencao", label: "Manutenção", icon: Wrench },
+  { id: "vistoria", label: "Vistoria", icon: ClipboardCheck },
+  { id: "checkin", label: "Check-in", icon: LogIn },
+  { id: "checkout", label: "Check-out", icon: LogOut },
+  { id: "outro", label: "Outro", icon: MoreHorizontal },
+];
+
+const CUSTOM_TASK_TYPES_KEY = "tipos-compromisso-personalizados";
+const TRANSACOES_KEY = "transacoes-financeiras";
+const TAREFAS_KEY = "lista-tarefas";
+const CONCORRENTES_KEY = "concorrentes-links";
+const ESTOQUE_KEY = "lista-estoque";
+const ESTOQUE_SEED_VERSION_KEY = "estoque-seed-versao";
+const CURRENT_ESTOQUE_SEED_VERSION = 4;
+
+const ESTOQUE_CATEGORIAS = [
+  { id: "enxoval", label: "Enxoval" },
+  { id: "limpeza", label: "Limpeza" },
+  { id: "higiene", label: "Reposições" },
+  { id: "outros", label: "Outros" },
+];
+
+// Locais de controle para itens de enxoval: cada chalé + a lavanderia (roupa suja/lavando).
+const LAVANDERIA = { id: "lavanderia", name: "Lavanderia", color: "#475569", soft: "#EEF1F5" };
+const ENXOVAL_LOCATIONS = [...PROPERTIES, LAVANDERIA];
+function locationsFor(category) {
+  return category === "enxoval" ? ENXOVAL_LOCATIONS : PROPERTIES;
+}
+
+const ESTOQUE_SEED = [
+  { name: "Toalhas", category: "enxoval" },
+  { name: "Fronhas", category: "enxoval" },
+  { name: "Lençol", category: "enxoval" },
+  { name: "Cobre-leito", category: "enxoval" },
+  { name: "Cobertor", category: "enxoval" },
+  { name: "Pano de prato", category: "enxoval" },
+  { name: "Pano de pia", category: "enxoval" },
+  { name: "Tapete de banheiro", category: "enxoval" },
+  { name: "Desinfetante", category: "limpeza" },
+  { name: "Cera", category: "limpeza" },
+  { name: "Bucha de lavar louça", category: "limpeza" },
+  { name: "Veja", category: "limpeza" },
+  { name: "Cheirinho perfumador", category: "limpeza" },
+  { name: "Limpa vidro", category: "limpeza" },
+  { name: "Cândida", category: "limpeza" },
+  { name: "Papel higiênico", category: "higiene" },
+  { name: "Sabonete", category: "higiene" },
+  { name: "Fósforo", category: "higiene" },
+  { name: "Sacolas", category: "higiene" },
+  { name: "Saco de lixo", category: "limpeza" },
+  { name: "Detergente", category: "limpeza" },
+].map((it, i) => ({
+  id: `estoque-seed-${i}`,
+  name: it.name,
+  category: it.category,
+  quantities: Object.fromEntries(locationsFor(it.category).map(l => [l.id, 0])),
+}));
+const TRANSACOES_SEED_VERSION_KEY = "transacoes-seed-versao";
+const CURRENT_TRANSACOES_SEED_VERSION = 2;
+
+// Correções de nome por id de reserva (confirmadas pelos comprovantes de repasse do Airbnb).
+const RESERVA_ID_NAME_FIXES = {
+  "seed2-a6": "Augusta Micaela De Souza Lima",
+  "seed2-b5": "Alex André",
+};
+
+// Recebimentos do Airbnb informados pelo usuário (julho de 2026).
+const SEED_TRANSACOES = [
+  { id: "seedt-1", kind: "receita", propertyId: null, description: "Recebimento Airbnb", amount: 752.45, date: "2026-07-01" },
+  { id: "seedt-2", kind: "receita", propertyId: null, description: "Recebimento Airbnb", amount: 1144.21, date: "2026-07-04" },
+  { id: "seedt-3", kind: "receita", propertyId: null, description: "Recebimento Airbnb", amount: 646.12, date: "2026-07-05" },
+  { id: "seedt-4", kind: "receita", propertyId: null, description: "Recebimento Airbnb", amount: 2532.13, date: "2026-07-07" },
+  { id: "seedt-5", kind: "receita", propertyId: null, description: "Recebimento Airbnb", amount: 502.99, date: "2026-07-10" },
+  { id: "seedt-6", kind: "receita", propertyId: null, description: "Recebimento Airbnb", amount: 2742.15, date: "2026-07-11" },
+  { id: "seedt-7", kind: "receita", propertyId: null, description: "Recebimento Airbnb", amount: 81.79, date: "2026-07-13" },
+  { id: "seedt-8", kind: "receita", propertyId: "chale-a", description: "Repasse Airbnb - Augusta Micaela De Souza Lima", amount: 1308.59, date: "2026-07-14" },
+  { id: "seedt-9", kind: "receita", propertyId: "chale-b", description: "Repasse Airbnb - Alex André", amount: 572.51, date: "2026-07-14" },
+];
+
+const CHECKIN_HOUR = "17h";
+const CHECKOUT_HOUR = "14h";
+
+function slugify(text) {
+  return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `tipo-${Date.now()}`;
+}
+
+const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const WEEKDAY_LABELS = ["D","S","T","Q","Q","S","S"];
+
+function toKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function parseKey(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// ---------- Storage helpers ----------
+const EVENTS_KEY = "compromissos";
+const RESERVAS_KEY = "reservas-manuais";
+const SEED_VERSION_KEY = "reservas-seed-versao";
+const CURRENT_SEED_VERSION = 2;
+
+// Dados lidos das capturas de tela do calendário do Airbnb (revisão 2, mais precisa).
+const SEED_RESERVAS = {
+  "chale-a": [
+    { id: "seed2-a1", guestName: "Miguel", start: "2026-07-01", end: "2026-07-02" },
+    { id: "seed2-a2", guestName: "Rosiane", start: "2026-07-04", end: "2026-07-05" },
+    { id: "seed2-a3", guestName: "Marcela + 2", start: "2026-07-06", end: "2026-07-10" },
+    { id: "seed2-a4", guestName: "Isabela + 3", start: "2026-07-10", end: "2026-07-12" },
+    { id: "seed2-a5", guestName: "Vitória", start: "2026-07-12", end: "2026-07-13" },
+    { id: "seed2-a6", guestName: "Augusta Micaela + 2", start: "2026-07-13", end: "2026-07-17" },
+    { id: "seed2-a7", guestName: "Hóspede A (nome e checkout a confirmar)", start: "2026-07-31", end: "2026-08-01" },
+  ],
+  "chale-b": [
+    { id: "seed2-b1", guestName: "Every + 2", start: "2026-07-03", end: "2026-07-05" },
+    { id: "seed2-b2", guestName: "Diane Christina + 3", start: "2026-07-06", end: "2026-07-09" },
+    { id: "seed2-b3", guestName: "Mari... (nome a confirmar)", start: "2026-07-09", end: "2026-07-10" },
+    { id: "seed2-b4", guestName: "Natanael + 3", start: "2026-07-10", end: "2026-07-12" },
+    { id: "seed2-b5", guestName: "Alex... (nome a confirmar)", start: "2026-07-13", end: "2026-07-14" },
+    { id: "seed2-b6", guestName: "Pedro + 2", start: "2026-07-14", end: "2026-07-16" },
+    { id: "seed2-b7", guestName: "Ana Carolina + 2", start: "2026-07-16", end: "2026-07-20" },
+    { id: "seed2-b8", guestName: "Ednete + 2", start: "2026-07-22", end: "2026-07-24" },
+    { id: "seed2-b9", guestName: "Elias + 3", start: "2026-07-24", end: "2026-07-26" },
+    { id: "seed2-b10", guestName: "Cassio Vinicius + 1", start: "2026-07-27", end: "2026-07-30" },
+  ],
+};
+
+export default function App() {
+  const [today] = useState(() => new Date());
+  const [cursor, setCursor] = useState(() => new Date());
+  const [events, setEvents] = useState({});
+  const [reservas, setReservas] = useState({});
+  const [customTaskTypes, setCustomTaskTypes] = useState([]);
+  const [tab, setTab] = useState("calendario");
+  const [transacoes, setTransacoes] = useState([]);
+  const [transacaoModal, setTransacaoModal] = useState(null);
+  const [tarefas, setTarefas] = useState([]);
+  const [estoque, setEstoque] = useState([]);
+  const [concorrentes, setConcorrentes] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(() => toKey(new Date()));
+  const [visibleProps, setVisibleProps] = useState(() => PROPERTIES.map(p => p.id));
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [reservaModal, setReservaModal] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2600);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [evRes, resRes, verRes, customRes, transRes, transVerRes, tarefasRes, estoqueRes, estoqueVerRes, concRes] = await Promise.allSettled([
+          storage.get(EVENTS_KEY, false),
+          storage.get(RESERVAS_KEY, false),
+          storage.get(SEED_VERSION_KEY, false),
+          storage.get(CUSTOM_TASK_TYPES_KEY, false),
+          storage.get(TRANSACOES_KEY, false),
+          storage.get(TRANSACOES_SEED_VERSION_KEY, false),
+          storage.get(TAREFAS_KEY, false),
+          storage.get(ESTOQUE_KEY, false),
+          storage.get(ESTOQUE_SEED_VERSION_KEY, false),
+          storage.get(CONCORRENTES_KEY, false),
+        ]);
+        if (evRes.status === "fulfilled" && evRes.value) {
+          setEvents(JSON.parse(evRes.value.value));
+        }
+        if (customRes.status === "fulfilled" && customRes.value) {
+          setCustomTaskTypes(JSON.parse(customRes.value.value));
+        }
+        if (tarefasRes.status === "fulfilled" && tarefasRes.value) {
+          setTarefas(JSON.parse(tarefasRes.value.value));
+        }
+        if (concRes.status === "fulfilled" && concRes.value) {
+          setConcorrentes(JSON.parse(concRes.value.value));
+        }
+        {
+          let currentEstoque = (estoqueRes.status === "fulfilled" && estoqueRes.value) ? JSON.parse(estoqueRes.value.value) : [];
+          const estoqueStoredVersion = (estoqueVerRes.status === "fulfilled" && estoqueVerRes.value) ? Number(estoqueVerRes.value.value) : 0;
+          if (estoqueStoredVersion < CURRENT_ESTOQUE_SEED_VERSION) {
+            // Converte itens antigos (formato simples "quantity") para o novo formato categorizado com locais.
+            currentEstoque = currentEstoque.map(it => {
+              const seedMatch = ESTOQUE_SEED.find(s => s.name === it.name);
+              const category = it.name === "Saco de lixo" ? "limpeza" : (it.category || seedMatch?.category || "outros");
+              const locs = locationsFor(category);
+              if (it.quantities && !("geral" in it.quantities) && locs.every(l => l.id in it.quantities)) {
+                return { ...it, category };
+              }
+              const oldGeral = it.quantities?.geral ?? it.quantity ?? 0;
+              const quantities = Object.fromEntries(locs.map(l => [l.id, l.id === "chale-a" ? oldGeral : 0]));
+              return { id: it.id, name: it.name, category, quantities };
+            });
+            const already = new Set(currentEstoque.map(i => i.id));
+            const toAdd = ESTOQUE_SEED.filter(i => !already.has(i.id));
+            currentEstoque = [...currentEstoque, ...toAdd];
+            storage.set(ESTOQUE_KEY, JSON.stringify(currentEstoque), false).catch(() => {});
+            storage.set(ESTOQUE_SEED_VERSION_KEY, String(CURRENT_ESTOQUE_SEED_VERSION), false).catch(() => {});
+          }
+          setEstoque(currentEstoque);
+        }
+        {
+          let currentTrans = (transRes.status === "fulfilled" && transRes.value) ? JSON.parse(transRes.value.value) : [];
+          const transStoredVersion = (transVerRes.status === "fulfilled" && transVerRes.value) ? Number(transVerRes.value.value) : 0;
+          if (transStoredVersion < CURRENT_TRANSACOES_SEED_VERSION) {
+            const already = new Set(currentTrans.map(t => t.id));
+            const toAdd = SEED_TRANSACOES.filter(t => !already.has(t.id));
+            currentTrans = [...currentTrans, ...toAdd];
+            storage.set(TRANSACOES_KEY, JSON.stringify(currentTrans), false).catch(() => {});
+            storage.set(TRANSACOES_SEED_VERSION_KEY, String(CURRENT_TRANSACOES_SEED_VERSION), false).catch(() => {});
+          }
+          setTransacoes(currentTrans);
+        }
+        let current = (resRes.status === "fulfilled" && resRes.value) ? JSON.parse(resRes.value.value) : {};
+        const storedVersion = (verRes.status === "fulfilled" && verRes.value) ? Number(verRes.value.value) : 0;
+
+        let changed = false;
+        if (storedVersion < CURRENT_SEED_VERSION) {
+          // Remove seeds antigos (ids "seed-...") e aplica a revisão mais precisa.
+          for (const pid of Object.keys(current)) {
+            current[pid] = (current[pid] || []).filter(r => !r.id.startsWith("seed-"));
+          }
+          for (const pid of Object.keys(SEED_RESERVAS)) {
+            const already = new Set((current[pid] || []).map(r => r.id));
+            const toAdd = SEED_RESERVAS[pid].filter(r => !already.has(r.id));
+            current = { ...current, [pid]: [...(current[pid] || []), ...toAdd] };
+          }
+          changed = true;
+          storage.set(SEED_VERSION_KEY, String(CURRENT_SEED_VERSION), false).catch(() => {});
+        } else {
+          for (const pid of Object.keys(SEED_RESERVAS)) {
+            if (!current[pid] || current[pid].length === 0) {
+              current = { ...current, [pid]: SEED_RESERVAS[pid] };
+              changed = true;
+            }
+          }
+        }
+        for (const pid of Object.keys(current)) {
+          current[pid] = (current[pid] || []).map(r => {
+            if (RESERVA_ID_NAME_FIXES[r.id] && r.guestName !== RESERVA_ID_NAME_FIXES[r.id]) {
+              changed = true;
+              return { ...r, guestName: RESERVA_ID_NAME_FIXES[r.id] };
+            }
+            return r;
+          });
+        }
+        setReservas(current);
+        if (changed) storage.set(RESERVAS_KEY, JSON.stringify(current), false).catch(() => {});
+      } catch (e) {}
+    })();
+  }, []);
+
+  const persistEvents = useCallback(async (next) => {
+    setEvents(next);
+    try { await storage.set(EVENTS_KEY, JSON.stringify(next), false); return true; }
+    catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
+  }, [showToast]);
+
+  const persistCustomTypes = useCallback(async (next) => {
+    setCustomTaskTypes(next);
+    try { await storage.set(CUSTOM_TASK_TYPES_KEY, JSON.stringify(next), false); }
+    catch (e) {}
+  }, []);
+
+  const persistTransacoes = useCallback(async (next) => {
+    setTransacoes(next);
+    try { await storage.set(TRANSACOES_KEY, JSON.stringify(next), false); return true; }
+    catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
+  }, [showToast]);
+
+  async function addTransacao(t) {
+    const next = [...transacoes, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...t }];
+    return persistTransacoes(next);
+  }
+  async function updateTransacao(id, data) {
+    const next = transacoes.map(t => t.id === id ? { ...t, ...data } : t);
+    return persistTransacoes(next);
+  }
+  function removeTransacao(id) {
+    persistTransacoes(transacoes.filter(t => t.id !== id));
+  }
+
+  const persistTarefas = useCallback(async (next) => {
+    setTarefas(next);
+    try { await storage.set(TAREFAS_KEY, JSON.stringify(next), false); return true; }
+    catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
+  }, [showToast]);
+
+  async function addTarefa(title, propertyId) {
+    const next = [...tarefas, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title, done: false, propertyId }];
+    return persistTarefas(next);
+  }
+  function toggleTarefa(id) {
+    persistTarefas(tarefas.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  }
+  function removeTarefa(id) {
+    persistTarefas(tarefas.filter(t => t.id !== id));
+  }
+
+  const persistEstoque = useCallback(async (next) => {
+    setEstoque(next);
+    try { await storage.set(ESTOQUE_KEY, JSON.stringify(next), false); return true; }
+    catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
+  }, [showToast]);
+
+  async function addEstoqueItem(name, category) {
+    const quantities = Object.fromEntries(locationsFor(category).map(l => [l.id, 0]));
+    const next = [...estoque, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, category, quantities }];
+    return persistEstoque(next);
+  }
+  function updateEstoqueQty(id, locationKey, quantity) {
+    persistEstoque(estoque.map(i => i.id === id
+      ? { ...i, quantities: { ...i.quantities, [locationKey]: Math.max(0, quantity) } }
+      : i));
+  }
+  function removeEstoqueItem(id) {
+    persistEstoque(estoque.filter(i => i.id !== id));
+  }
+
+  const persistConcorrentes = useCallback(async (next) => {
+    setConcorrentes(next);
+    try { await storage.set(CONCORRENTES_KEY, JSON.stringify(next), false); return true; }
+    catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
+  }, [showToast]);
+
+  async function addConcorrente(url, label) {
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, label: label || "", notes: "", updatedAt: null };
+    const next = [...concorrentes, item];
+    return persistConcorrentes(next);
+  }
+  function removeConcorrente(id) {
+    persistConcorrentes(concorrentes.filter(c => c.id !== id));
+  }
+  function updateConcorrenteNotes(id, notes) {
+    persistConcorrentes(concorrentes.map(c => c.id === id ? { ...c, notes, updatedAt: new Date().toISOString() } : c));
+  }
+
+  const persistReservas = useCallback(async (next) => {
+    setReservas(next);
+    try { await storage.set(RESERVAS_KEY, JSON.stringify(next), false); }
+    catch (e) { showToast("Não consegui salvar a reserva."); }
+  }, [showToast]);
+
+  const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+  const leadingBlanks = monthStart.getDay();
+  const gridCells = useMemo(() => {
+    const cells = [];
+    for (let i = 0; i < leadingBlanks; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(cursor.getFullYear(), cursor.getMonth(), d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [cursor, leadingBlanks, daysInMonth]);
+
+  const weeks = useMemo(() => {
+    const w = [];
+    for (let i = 0; i < gridCells.length; i += 7) w.push(gridCells.slice(i, i + 7));
+    return w;
+  }, [gridCells]);
+
+  function findActiveReservation(pid, dateKey) {
+    const list = reservas[pid] || [];
+    return list.find(r => dateKey >= r.start && dateKey < r.end) || null;
+  }
+
+  // Segmenta as reservas da semana em blocos por hóspede, em unidades de meio-dia (14 colunas).
+  // Cada dia ocupa 2 colunas: a de manhã (chegada ainda não / saída já aconteceu) e a de tarde.
+  function computeSegments(weekDates, pid) {
+    const list = reservas[pid] || [];
+    const weekKeys = weekDates.map(d => d ? toKey(d) : null);
+    const hasAnyDay = weekKeys.some(k => k !== null);
+    if (!hasAnyDay) return [];
+    const segments = [];
+    for (const r of list) {
+      const inWeekNight = weekKeys.some(k => k && k >= r.start && k < r.end);
+      const checkinIdx = weekKeys.findIndex(k => k === r.start);
+      const checkoutIdx = weekKeys.findIndex(k => k === r.end);
+      if (!inWeekNight && checkinIdx === -1 && checkoutIdx === -1) continue;
+      const isTrueStart = checkinIdx !== -1;
+      const isTrueEnd = checkoutIdx !== -1;
+      const startCol = isTrueStart ? (2 * checkinIdx + 2) : 1; // chegada ocupa só a tarde daquele dia
+      const endColExclusive = isTrueEnd ? (2 * checkoutIdx + 2) : 15; // saída ocupa só a manhã do dia de checkout
+      segments.push({ reservation: r, isTrueStart, isTrueEnd, startCol, endColExclusive, propertyId: pid });
+    }
+    return segments;
+  }
+
+  function tasksOnDay(dateKey) {
+    const out = [];
+    for (const pid of visibleProps) {
+      const list = events[pid] || [];
+      for (const t of list) if (t.dateKey === dateKey) out.push({ ...t, propertyId: pid });
+    }
+    return out;
+  }
+  function reservasOnDay(dateKey) {
+    const out = [];
+    for (const pid of visibleProps) {
+      const r = findActiveReservation(pid, dateKey);
+      if (r) out.push({ ...r, propertyId: pid });
+    }
+    return out;
+  }
+  function propColor(pid) { return PROPERTIES.find(p => p.id === pid)?.color || "#666"; }
+  function propSoft(pid) { return PROPERTIES.find(p => p.id === pid)?.soft || "#eee"; }
+  function propName(pid) { return PROPERTIES.find(p => p.id === pid)?.name || pid; }
+
+  function goMonth(delta) { setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1)); }
+  function goToday() { setCursor(new Date()); setSelectedDay(toKey(new Date())); }
+  function toggleProp(pid) { setVisibleProps(v => v.includes(pid) ? v.filter(x => x !== pid) : [...v, pid]); }
+
+  async function addTask(pid, task, newType) {
+    const list = events[pid] || [];
+    const next = { ...events, [pid]: [...list, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...task }] };
+    const ok = await persistEvents(next);
+    if (ok && newType && !customTaskTypes.some(t => t.id === newType.id) && !TASK_TYPES.some(t => t.id === newType.id)) {
+      persistCustomTypes([...customTaskTypes, newType]);
+    }
+    return ok;
+  }
+  function removeTask(pid, id) {
+    const list = events[pid] || [];
+    persistEvents({ ...events, [pid]: list.filter(t => t.id !== id) });
+  }
+  function saveReserva(pid, data, editId) {
+    if (editId) {
+      const next = { ...reservas };
+      for (const key of Object.keys(next)) next[key] = (next[key] || []).filter(r => r.id !== editId);
+      next[pid] = [...(next[pid] || []), { id: editId, ...data }];
+      persistReservas(next);
+      showToast("Reserva atualizada.");
+    } else {
+      const list = reservas[pid] || [];
+      persistReservas({ ...reservas, [pid]: [...list, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...data }] });
+      showToast("Reserva adicionada.");
+    }
+  }
+  function removeReserva(pid, id) {
+    const list = reservas[pid] || [];
+    persistReservas({ ...reservas, [pid]: list.filter(r => r.id !== id) });
+  }
+
+  const dayTasks = tasksOnDay(selectedDay);
+  const selectedDate = parseKey(selectedDay);
+
+  return (
+    <div style={{
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      background: "#FAF9F7", height: "100vh", color: "#1F2937",
+      display: "flex", flexDirection: "column", overflow: "hidden",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
+        * { box-sizing: border-box; }
+        .cal-cell { transition: background 0.15s ease; }
+        .cal-cell:active { background: #F3F1EC; }
+        .bar-seg:active { filter: brightness(0.92); }
+        button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #FF385C; outline-offset: 1px; }
+        .btn-primary { background: #FF385C; color: white; border: none; }
+        .btn-primary:active { background: #E31C5F; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spin { animation: none; } }
+      `}</style>
+
+      {/* Header */}
+      <header style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "14px 16px 12px", borderBottom: "1px solid #EAE7E0", background: "#fff", flexShrink: 0,
+      }}>
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: "#FF385C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <CalendarDays size={16} color="white" />
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16.5, fontWeight: 600, lineHeight: 1.15 }}>
+            {tab === "calendario" ? "Calendário dos chalés" : tab === "tarefas" ? "Tarefas" : tab === "estoque" ? "Estoque" : tab === "concorrentes" ? "Concorrentes" : "Finanças"}
+          </div>
+          <div style={{ fontSize: 11.5, color: "#8A8478" }}>
+            {tab === "calendario" ? "Reservas e compromissos do dia" : tab === "tarefas" ? "Sua lista de afazeres" : tab === "estoque" ? "Controle de itens dos chalés" : tab === "concorrentes" ? "Análise de anúncios concorrentes" : "Receitas e despesas por chalé"}
+          </div>
+        </div>
+        {tab === "calendario" && (
+          <button onClick={goToday} style={{
+            padding: "7px 11px", borderRadius: 9, border: "1px solid #EAE7E0", background: "#fff",
+            fontSize: 12, fontWeight: 600, color: "#1F2937", cursor: "pointer", flexShrink: 0,
+          }}>
+            Hoje
+          </button>
+        )}
+      </header>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {tab === "calendario" && (
+        <div style={{ padding: "14px 12px 24px" }}>
+          {/* Property chips */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, overflowX: "auto" }}>
+            {PROPERTIES.map(p => (
+              <button key={p.id} onClick={() => toggleProp(p.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, flexShrink: 0,
+                  border: `1.5px solid ${visibleProps.includes(p.id) ? p.color : "#E5E1D8"}`,
+                  background: visibleProps.includes(p.id) ? p.soft : "#fff",
+                  color: visibleProps.includes(p.id) ? p.color : "#B3ADA0",
+                  fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                }}>
+                <Home size={11} />
+                {p.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Month nav */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <button onClick={() => goMonth(-1)} style={navBtnStyle}><ChevronLeft size={17} /></button>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17.5, fontWeight: 600, textAlign: "center" }}>
+              {MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}
+            </div>
+            <button onClick={() => goMonth(1)} style={navBtnStyle}><ChevronRight size={17} /></button>
+          </div>
+
+          {/* Weekday labels */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 6 }}>
+            {WEEKDAY_LABELS.map((w, i) => (
+              <div key={i} style={{ fontSize: 10.5, fontWeight: 700, color: "#B3ADA0", textAlign: "center" }}>{w}</div>
+            ))}
+          </div>
+
+          {/* Gantt-style weeks (grid de 14 colunas = meio-dia por unidade) */}
+          {weeks.map((weekDates, wi) => {
+            const segByProp = visibleProps.map(pid => ({ pid, segs: computeSegments(weekDates, pid) })).filter(x => x.segs.length > 0);
+            return (
+              <div key={wi} style={{ marginBottom: 8 }}>
+                {/* Day numbers */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 3 }}>
+                  {weekDates.map((date, di) => {
+                    if (!date) return <div key={di} />;
+                    const key = toKey(date);
+                    const isToday = isSameDay(date, today);
+                    const isSelected = key === selectedDay;
+                    const taskList = tasksOnDay(key);
+                    return (
+                      <button key={di} className="cal-cell" onClick={() => setSelectedDay(key)}
+                        style={{
+                          borderRadius: 9, border: isSelected ? "2px solid #FF385C" : "1px solid transparent",
+                          background: isToday ? "#FFF0EC" : "transparent", padding: "3px 2px",
+                          display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+                          cursor: "pointer", minHeight: 30,
+                        }}>
+                        <span style={{ fontSize: 12.5, fontWeight: isToday ? 700 : 500, color: isToday ? "#FF385C" : "#1F2937" }}>
+                          {date.getDate()}
+                        </span>
+                        {taskList.length > 0 && (
+                          <div style={{ display: "flex", gap: 2 }}>
+                            {taskList.slice(0, 3).map((t, idx) => (
+                              <span key={idx} style={{ width: 4, height: 4, borderRadius: 999, background: propColor(t.propertyId) }} />
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Reservation bars — grid de 14 colunas (meio-dia), refletindo chegada à tarde e saída de manhã */}
+                {segByProp.map(({ pid, segs }) => (
+                  <div key={pid} style={{ display: "grid", gridTemplateColumns: "repeat(14, 1fr)", gap: 0, height: 24, marginBottom: 3, position: "relative" }}>
+                    {segs.map((seg, si) => (
+                      <button key={si} className="bar-seg"
+                        onClick={() => setReservaModal({ mode: "edit", reserva: { ...seg.reservation, propertyId: pid } })}
+                        style={{
+                          gridColumn: `${seg.startCol} / ${seg.endColExclusive}`,
+                          background: propColor(pid), color: "#fff", border: "none", cursor: "pointer",
+                          borderRadius: `${seg.isTrueStart ? 12 : 0}px ${seg.isTrueEnd ? 12 : 0}px ${seg.isTrueEnd ? 12 : 0}px ${seg.isTrueStart ? 12 : 0}px`,
+                          display: "flex", alignItems: "center", position: "relative", zIndex: 1,
+                          paddingLeft: seg.isTrueStart ? 8 : 3, paddingRight: 4,
+                          fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                          textAlign: "left",
+                        }}>
+                        {seg.isTrueStart && (
+                          <span style={{
+                            width: 15, height: 15, borderRadius: 999, background: "rgba(255,255,255,0.9)",
+                            flexShrink: 0, marginRight: 5, border: `2px solid ${propColor(pid)}`,
+                          }} />
+                        )}
+                        {seg.reservation.guestName}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+
+          {/* Legend */}
+          <div style={{ display: "flex", gap: 14, marginBottom: 14, marginTop: 4, flexWrap: "wrap" }}>
+            {PROPERTIES.map(p => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#8A8478" }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: p.color }} />
+                {p.name}
+              </div>
+            ))}
+            <div style={{ fontSize: 11, color: "#8A8478" }}>
+              Chegada {CHECKIN_HOUR} · Saída {CHECKOUT_HOUR}
+            </div>
+          </div>
+
+          {/* Selected day detail */}
+          <div style={{ borderTop: "1px solid #EEEBE4", paddingTop: 14 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600 }}>
+                {selectedDate.getDate()} de {MONTH_NAMES[selectedDate.getMonth()]}
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button onClick={() => setReservaModal({ mode: "create" })} style={quickActionStyle}>
+                  <CalendarPlus size={13} /> Reserva
+                </button>
+                <button onClick={() => setShowAddTask(true)} style={quickActionStyle}>
+                  <Plus size={13} /> Compromisso
+                </button>
+              </div>
+            </div>
+
+            {dayTasks.length === 0 && (
+              <div style={{ textAlign: "center", color: "#B3ADA0", fontSize: 12.5, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <Sparkles size={18} />
+                Nenhum compromisso nesse dia.
+              </div>
+            )}
+
+            {dayTasks.map(t => {
+              const TaskIcon = TASK_TYPES.find(tt => tt.id === t.type)?.icon || MoreHorizontal;
+              return (
+                <div key={t.id} style={{ padding: 10, borderRadius: 10, border: "1px solid #EEEBE4", marginBottom: 8, display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 8, background: propSoft(t.propertyId), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <TaskIcon size={13} color={propColor(t.propertyId)} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</div>
+                    <div style={{ fontSize: 11, color: "#8A8478" }}>
+                      {propName(t.propertyId)}{t.time ? ` · ${t.time}` : ""}
+                    </div>
+                    {t.note && <div style={{ fontSize: 11, color: "#6B6558", marginTop: 3 }}>{t.note}</div>}
+                  </div>
+                  <button onClick={() => removeTask(t.propertyId, t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#B3ADA0", padding: 2 }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Hoje */}
+          <div style={{ marginTop: 22 }}>
+            <HojeCard today={today} reservas={reservas} events={events} visibleProps={visibleProps}
+              propName={propName} propColor={propColor} propSoft={propSoft}
+              onOpen={() => { setSelectedDay(toKey(today)); setCursor(new Date(today)); }} />
+          </div>
+        </div>
+        )}
+
+        {tab === "tarefas" && (
+          <TarefasTab tarefas={tarefas} onAdd={addTarefa} onToggle={toggleTarefa} onRemove={removeTarefa}
+            propColor={propColor} propSoft={propSoft} />
+        )}
+
+        {tab === "estoque" && (
+          <EstoqueTab estoque={estoque} onAdd={addEstoqueItem} onChangeQty={updateEstoqueQty} onRemove={removeEstoqueItem} />
+        )}
+
+        {tab === "concorrentes" && (
+          <ConcorrentesTab concorrentes={concorrentes} onAdd={addConcorrente} onRemove={removeConcorrente} onSaveNotes={updateConcorrenteNotes} />
+        )}
+
+        {tab === "financas" && (
+          <FinancasTab
+            transacoes={transacoes}
+            onAdd={() => setTransacaoModal({ mode: "create" })}
+            onEdit={(t) => setTransacaoModal({ mode: "edit", transacao: t })}
+            onRemove={removeTransacao}
+            propName={propName}
+            propColor={propColor}
+            propSoft={propSoft}
+          />
+        )}
+      </div>
+
+      {/* Bottom tab bar */}
+      <nav style={{
+        display: "flex", borderTop: "1px solid #EAE7E0", background: "#fff",
+        flexShrink: 0, paddingBottom: "env(safe-area-inset-bottom, 6px)",
+      }}>
+        {[
+          { id: "calendario", label: "Calendário", icon: CalendarDays },
+          { id: "tarefas", label: "Tarefas", icon: ListChecks },
+          { id: "estoque", label: "Estoque", icon: Package },
+          { id: "concorrentes", label: "Concorrentes", icon: Search },
+          { id: "financas", label: "Finanças", icon: Wallet },
+        ].map(t => {
+          const Icon = t.icon;
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                padding: "10px 4px 8px", background: "none", border: "none", cursor: "pointer",
+                color: active ? "#FF385C" : "#B3ADA0",
+              }}>
+              <Icon size={17} />
+              <span style={{ fontSize: 9.5, fontWeight: 600, textAlign: "center", lineHeight: 1.1 }}>{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {transacaoModal && (
+        <AddTransacaoModal
+          initial={transacaoModal.mode === "edit" ? transacaoModal.transacao : null}
+          onClose={() => setTransacaoModal(null)}
+          onSave={async (data, editId) => {
+            const ok = editId ? await updateTransacao(editId, data) : await addTransacao(data);
+            if (ok) { setTransacaoModal(null); showToast(editId ? "Lançamento atualizado." : "Lançamento salvo."); }
+          }}
+        />
+      )}
+
+      {reservaModal && (
+        <AddReservaModal
+          defaultDateKey={selectedDay}
+          initial={reservaModal.mode === "edit" ? reservaModal.reserva : null}
+          onClose={() => setReservaModal(null)}
+          onSave={(pid, data, editId) => { saveReserva(pid, data, editId); setReservaModal(null); }}
+        />
+      )}
+
+      {showAddTask && (
+        <AddTaskModal
+          defaultDateKey={selectedDay}
+          customTaskTypes={customTaskTypes}
+          onClose={() => setShowAddTask(false)}
+          onSave={async (pid, task, newType) => {
+            const ok = await addTask(pid, task, newType);
+            if (ok) { setShowAddTask(false); showToast("Compromisso salvo."); }
+          }}
+        />
+      )}
+
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: "#1F2937", color: "#fff", padding: "9px 16px", borderRadius: 10,
+          fontSize: 12.5, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", zIndex: 60, whiteSpace: "nowrap",
+        }}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const navBtnStyle = {
+  width: 30, height: 30, borderRadius: 9, border: "1px solid #EAE7E0",
+  background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+};
+const quickActionStyle = {
+  display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
+  color: "#FF385C", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 4,
+};
+
+function ModalShell({ title, onClose, children }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(31,41,55,0.4)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50,
+    }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: "18px 18px 0 0", padding: "18px 18px calc(20px + env(safe-area-inset-bottom, 0px))",
+        width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto",
+        boxShadow: "0 -10px 40px rgba(0,0,0,0.2)",
+      }}>
+        <div style={{ width: 36, height: 4, borderRadius: 999, background: "#EAE7E0", margin: "0 auto 14px" }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16.5, fontWeight: 600 }}>{title}</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#8A8478" }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function AddReservaModal({ defaultDateKey, initial, onClose, onSave }) {
+  const isEdit = !!initial;
+  const [propertyId, setPropertyId] = useState(initial?.propertyId || PROPERTIES[0].id);
+  const [guestName, setGuestName] = useState(initial?.guestName || "");
+  const [start, setStart] = useState(initial?.start || defaultDateKey);
+  const [end, setEnd] = useState(initial?.end || defaultDateKey);
+
+  function handleSave() {
+    if (!guestName.trim() || !start || !end || end <= start) return;
+    onSave(propertyId, { guestName: guestName.trim(), start, end }, isEdit ? initial.id : null);
+  }
+  const invalid = !guestName.trim() || !start || !end || end <= start;
+
+  return (
+    <ModalShell title={isEdit ? "Editar reserva" : "Nova reserva"} onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div>
+          <FieldLabel>Imóvel</FieldLabel>
+          <div style={{ display: "flex", gap: 8 }}>
+            {PROPERTIES.map(p => (
+              <button key={p.id} onClick={() => setPropertyId(p.id)}
+                style={{
+                  flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                  border: `1.5px solid ${propertyId === p.id ? p.color : "#EAE7E0"}`,
+                  background: propertyId === p.id ? p.soft : "#fff",
+                  color: propertyId === p.id ? p.color : "#6B6558",
+                }}>{p.name}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Hóspede</FieldLabel>
+          <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Ex.: Marcela + 2" style={inputStyle} />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Check-in ({CHECKIN_HOUR})</FieldLabel>
+            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Check-out ({CHECKOUT_HOUR})</FieldLabel>
+            <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+        <button className="btn-primary" disabled={invalid} onClick={handleSave}
+          style={{ padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginTop: 4, cursor: invalid ? "not-allowed" : "pointer", opacity: invalid ? 0.5 : 1 }}>
+          {isEdit ? "Salvar alterações" : "Salvar reserva"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function AddTaskModal({ defaultDateKey, customTaskTypes, onClose, onSave }) {
+  const allTypes = [...TASK_TYPES.slice(0, -1), ...customTaskTypes, TASK_TYPES[TASK_TYPES.length - 1]]; // "Outro" sempre por último
+  const [propertyId, setPropertyId] = useState(PROPERTIES[0].id);
+  const [type, setType] = useState("limpeza");
+  const [title, setTitle] = useState("Limpeza");
+  const [customLabel, setCustomLabel] = useState("");
+  const [dateKey, setDateKey] = useState(defaultDateKey);
+  const [time, setTime] = useState("");
+  const [note, setNote] = useState("");
+
+  function pickType(t) {
+    setType(t.id);
+    if (t.id !== "outro") setTitle(t.label);
+    else { setTitle(""); setCustomLabel(""); }
+  }
+
+  function handleSave() {
+    if (type === "outro") {
+      const label = customLabel.trim();
+      if (!label) return;
+      const newTypeId = slugify(label);
+      onSave(propertyId, { dateKey, type: newTypeId, title: label, time, note: note.trim() }, { id: newTypeId, label });
+    } else {
+      if (!title.trim()) return;
+      onSave(propertyId, { dateKey, type, title: title.trim(), time, note: note.trim() });
+    }
+  }
+  const invalid = type === "outro" ? !customLabel.trim() : !title.trim();
+
+  return (
+    <ModalShell title="Novo compromisso" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div>
+          <FieldLabel>Imóvel</FieldLabel>
+          <div style={{ display: "flex", gap: 8 }}>
+            {PROPERTIES.map(p => (
+              <button key={p.id} onClick={() => setPropertyId(p.id)}
+                style={{
+                  flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                  border: `1.5px solid ${propertyId === p.id ? p.color : "#EAE7E0"}`,
+                  background: propertyId === p.id ? p.soft : "#fff",
+                  color: propertyId === p.id ? p.color : "#6B6558",
+                }}>{p.name}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Tipo</FieldLabel>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {allTypes.map(t => (
+              <button key={t.id} onClick={() => pickType(t)}
+                style={{
+                  padding: "7px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  border: `1px solid ${type === t.id ? "#1F2937" : "#EAE7E0"}`,
+                  background: type === t.id ? "#1F2937" : "#fff",
+                  color: type === t.id ? "#fff" : "#6B6558",
+                }}>{t.label}</button>
+            ))}
+          </div>
+        </div>
+        {type === "outro" ? (
+          <div>
+            <FieldLabel>Especificar (vira uma nova opção de tipo)</FieldLabel>
+            <input value={customLabel} onChange={(e) => setCustomLabel(e.target.value)} placeholder="Ex.: Troca de gás, Jardinagem..." style={inputStyle} />
+          </div>
+        ) : (
+          <div>
+            <FieldLabel>Título</FieldLabel>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} />
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Data</FieldLabel>
+            <input type="date" value={dateKey} onChange={(e) => setDateKey(e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ width: 108 }}>
+            <FieldLabel>Hora</FieldLabel>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Observação (opcional)</FieldLabel>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, height: 60, resize: "vertical" }} />
+        </div>
+        <button className="btn-primary" disabled={invalid} onClick={handleSave}
+          style={{ padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginTop: 4, cursor: invalid ? "not-allowed" : "pointer", opacity: invalid ? 0.5 : 1 }}>
+          Salvar compromisso
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function HojeCard({ today, reservas, events, visibleProps, propName, propColor, propSoft, onOpen }) {
+  const todayKey = toKey(today);
+  const items = [];
+  for (const pid of visibleProps) {
+    for (const r of (reservas[pid] || [])) {
+      if (r.start === todayKey) items.push({ kind: "checkin", pid, label: `${r.guestName} chega`, sub: `Check-in · ${CHECKIN_HOUR}` });
+      if (r.end === todayKey) items.push({ kind: "checkout", pid, label: `${r.guestName} sai`, sub: `Check-out · ${CHECKOUT_HOUR}` });
+    }
+    for (const t of (events[pid] || [])) {
+      if (t.dateKey === todayKey) {
+        const TaskIcon = TASK_TYPES.find(tt => tt.id === t.type)?.icon || MoreHorizontal;
+        items.push({ kind: "tarefa", pid, label: t.title, sub: t.time || "Compromisso", icon: TaskIcon });
+      }
+    }
+  }
+  const order = { checkin: 0, checkout: 1, tarefa: 2 };
+  items.sort((a, b) => order[a.kind] - order[b.kind]);
+
+  return (
+    <button onClick={onOpen} style={{
+      width: "100%", textAlign: "left", border: "none", cursor: "pointer",
+      background: "#1F2937", borderRadius: 18, padding: 20, marginBottom: 16,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <Sparkles size={18} color="#FF8A65" />
+        <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>
+          Hoje · {today.getDate()} de {MONTH_NAMES[today.getMonth()]}
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 13.5, color: "rgba(255,255,255,0.6)", padding: "10px 0 4px" }}>Nada agendado para hoje.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {items.map((it, idx) => {
+            const Icon = it.kind === "checkin" ? LogIn : it.kind === "checkout" ? LogOut : (it.icon || MoreHorizontal);
+            return (
+              <div key={idx} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(255,255,255,0.12)",
+                }}>
+                  <Icon size={16} color="#fff" />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#fff", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {it.label}
+                </span>
+                <span style={{ fontSize: 11.5, color: propColor(it.pid), background: propSoft(it.pid), padding: "3px 8px", borderRadius: 999, fontWeight: 700, flexShrink: 0 }}>
+                  {propName(it.pid)}
+                </span>
+                <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", flexShrink: 0 }}>{it.sub}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </button>
+  );
+}
+
+function TarefasTab({ tarefas, onAdd, onToggle, onRemove, propColor, propSoft }) {
+  const [novoTitulo, setNovoTitulo] = useState("");
+  const [novaProp, setNovaProp] = useState(PROPERTIES[0].id);
+
+  function handleAdd() {
+    const title = novoTitulo.trim();
+    if (!title) return;
+    onAdd(title, novaProp);
+    setNovoTitulo("");
+  }
+
+  return (
+    <div style={{ padding: "14px 12px 24px" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, overflowX: "auto" }}>
+        {PROPERTIES.map(p => (
+          <button key={p.id} onClick={() => setNovaProp(p.id)}
+            style={{
+              padding: "6px 11px", borderRadius: 999, flexShrink: 0, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              border: `1.5px solid ${novaProp === p.id ? p.color : "#E5E1D8"}`,
+              background: novaProp === p.id ? p.soft : "#fff",
+              color: novaProp === p.id ? p.color : "#B3ADA0",
+            }}>{p.name}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <input value={novoTitulo} onChange={(e) => setNovoTitulo(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+          placeholder={`Nova tarefa para ${PROPERTIES.find(p => p.id === novaProp).name}...`} style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={handleAdd} disabled={!novoTitulo.trim()} className="btn-primary"
+          style={{
+            width: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: novoTitulo.trim() ? "pointer" : "not-allowed", opacity: novoTitulo.trim() ? 1 : 0.5,
+          }}>
+          <Plus size={17} />
+        </button>
+      </div>
+
+      {tarefas.length === 0 && (
+        <div style={{ textAlign: "center", color: "#B3ADA0", fontSize: 12.5, padding: "24px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <ListChecks size={20} />
+          Nenhuma tarefa ainda. Adicione a primeira acima.
+        </div>
+      )}
+
+      {PROPERTIES.map((p, idx) => {
+        const doChale = tarefas.filter(t => t.propertyId === p.id);
+        const pendentes = doChale.filter(t => !t.done);
+        const feitas = doChale.filter(t => t.done);
+        return (
+          <div key={p.id} style={{
+            marginBottom: 4,
+            borderTop: idx > 0 ? "1px solid #EEEBE4" : "none",
+            paddingTop: idx > 0 ? 14 : 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: p.color }} />
+              <span style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600 }}>{p.name}</span>
+            </div>
+            {doChale.length === 0 && (
+              <div style={{ fontSize: 12, color: "#B3ADA0", padding: "4px 0 14px" }}>Nenhuma tarefa por aqui.</div>
+            )}
+            {pendentes.map(t => (
+              <TarefaRow key={t.id} tarefa={t} onToggle={onToggle} onRemove={onRemove} />
+            ))}
+            {feitas.length > 0 && (
+              <>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#B3ADA0", textTransform: "uppercase", letterSpacing: 0.4, margin: "10px 0 6px" }}>
+                  Concluídas
+                </div>
+                {feitas.map(t => (
+                  <TarefaRow key={t.id} tarefa={t} onToggle={onToggle} onRemove={onRemove} />
+                ))}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TarefaRow({ tarefa, onToggle, onRemove }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10, padding: "10px 4px",
+      borderBottom: "1px solid #EEEBE4",
+    }}>
+      <button onClick={() => onToggle(tarefa.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+        {tarefa.done
+          ? <CheckCircle2 size={22} color="#F2B705" fill="#F2B705" />
+          : <Circle size={22} color="#D8D3C7" />}
+      </button>
+      <span style={{
+        flex: 1, fontSize: 14.5, color: tarefa.done ? "#B3ADA0" : "#1F2937",
+        textDecoration: tarefa.done ? "line-through" : "none",
+      }}>
+        {tarefa.title}
+      </span>
+      <button onClick={() => onRemove(tarefa.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 4 }}>
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
+
+function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
+  const [url, setUrl] = useState("");
+  const [label, setLabel] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  async function handleAdd() {
+    const cleanUrl = url.trim();
+    if (!cleanUrl) return;
+    setAdding(true);
+    await onAdd(cleanUrl, label.trim());
+    setAdding(false);
+    setUrl("");
+    setLabel("");
+  }
+
+  return (
+    <div style={{ padding: "14px 12px 24px" }}>
+      <div style={{ padding: 12, borderRadius: 12, background: "#F3F1EC", marginBottom: 18 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#6B6558", marginBottom: 8 }}>Cadastrar concorrente</div>
+        <input value={url} onChange={(e) => setUrl(e.target.value)}
+          placeholder="Link do anúncio no Airbnb" style={{ ...inputStyle, marginBottom: 8 }} />
+        <input value={label} onChange={(e) => setLabel(e.target.value)}
+          placeholder="Apelido (opcional, ex.: Chalé da Serra)" style={{ ...inputStyle, marginBottom: 10 }} />
+        <button onClick={handleAdd} disabled={!url.trim() || adding} className="btn-primary"
+          style={{
+            width: "100%", padding: "10px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            cursor: (!url.trim() || adding) ? "not-allowed" : "pointer", opacity: (!url.trim() || adding) ? 0.5 : 1,
+          }}>
+          <Plus size={15} /> Adicionar
+        </button>
+      </div>
+
+      <p style={{ fontSize: 11, color: "#B3ADA0", lineHeight: 1.5, marginTop: -8, marginBottom: 18 }}>
+        Nesta versão o app só guarda o link e suas próprias anotações — a pesquisa automática por IA
+        só está disponível na versão de dentro do Claude, que tem acesso à busca na web embutida.
+      </p>
+
+      {concorrentes.length === 0 && (
+        <div style={{ textAlign: "center", color: "#B3ADA0", fontSize: 12.5, padding: "24px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <Search size={20} />
+          Nenhum concorrente cadastrado ainda.
+        </div>
+      )}
+
+      {concorrentes.map(c => (
+        <ConcorrenteCard key={c.id} concorrente={c} onRemove={onRemove} onSaveNotes={onSaveNotes} />
+      ))}
+    </div>
+  );
+}
+
+function ConcorrenteCard({ concorrente: c, onRemove, onSaveNotes }) {
+  const [notes, setNotes] = useState(c.notes || "");
+  const dirty = notes !== (c.notes || "");
+
+  return (
+    <div style={{ padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.label || "Concorrente"}</div>
+          <a href={c.url} target="_blank" rel="noreferrer" style={{
+            fontSize: 11, color: "#0F766E", display: "flex", alignItems: "center", gap: 4,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            <Link2 size={11} /> {c.url}
+          </a>
+        </div>
+        <button onClick={() => onRemove(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2, flexShrink: 0 }}>
+          <X size={16} />
+        </button>
+      </div>
+
+      <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+        placeholder="Suas anotações: preço observado, diferenciais, fotos, o que parece funcionar..."
+        style={{ ...inputStyle, height: 80, resize: "vertical", marginBottom: 8 }} />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 10.5, color: "#B3ADA0" }}>
+          {c.updatedAt ? `Atualizado em ${new Date(c.updatedAt).toLocaleDateString("pt-BR")}` : "Sem anotações ainda"}
+        </span>
+        <button onClick={() => onSaveNotes(c.id, notes)} disabled={!dirty} style={{
+          display: "flex", alignItems: "center", gap: 5, background: dirty ? "#1F2937" : "#fff",
+          border: "1px solid #EAE7E0", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 600,
+          color: dirty ? "#fff" : "#B3ADA0", cursor: dirty ? "pointer" : "not-allowed",
+        }}>
+          Salvar anotação
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
+  const [novoItem, setNovoItem] = useState("");
+  const [novaCategoria, setNovaCategoria] = useState("enxoval");
+  const [openCats, setOpenCats] = useState(() => Object.fromEntries(ESTOQUE_CATEGORIAS.map(c => [c.id, true])));
+
+  function toggleCat(id) {
+    setOpenCats(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function handleAdd() {
+    const name = novoItem.trim();
+    if (!name) return;
+    onAdd(name, novaCategoria);
+    setNovoItem("");
+  }
+
+  function totalOf(item) {
+    return Object.values(item.quantities).reduce((s, n) => s + n, 0);
+  }
+
+  return (
+    <div style={{ padding: "14px 12px 24px" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, overflowX: "auto" }}>
+        {ESTOQUE_CATEGORIAS.map(c => (
+          <button key={c.id} onClick={() => setNovaCategoria(c.id)}
+            style={{
+              padding: "6px 11px", borderRadius: 999, flexShrink: 0, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              border: `1.5px solid ${novaCategoria === c.id ? "#1F2937" : "#EAE7E0"}`,
+              background: novaCategoria === c.id ? "#1F2937" : "#fff",
+              color: novaCategoria === c.id ? "#fff" : "#6B6558",
+            }}>{c.label}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <input value={novoItem} onChange={(e) => setNovoItem(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+          placeholder={`Novo item de ${ESTOQUE_CATEGORIAS.find(c => c.id === novaCategoria).label.toLowerCase()}...`}
+          style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={handleAdd} disabled={!novoItem.trim()} className="btn-primary"
+          style={{
+            width: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: novoItem.trim() ? "pointer" : "not-allowed", opacity: novoItem.trim() ? 1 : 0.5,
+          }}>
+          <Plus size={17} />
+        </button>
+      </div>
+
+      {estoque.length === 0 && (
+        <div style={{ textAlign: "center", color: "#B3ADA0", fontSize: 12.5, padding: "24px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <Package size={20} />
+          Nenhum item ainda.
+        </div>
+      )}
+
+      {ESTOQUE_CATEGORIAS.map(cat => {
+        const items = estoque.filter(i => i.category === cat.id);
+        if (items.length === 0) return null;
+        const isOpen = openCats[cat.id];
+        return (
+          <div key={cat.id} style={{ marginBottom: 14 }}>
+            <button onClick={() => toggleCat(cat.id)} style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
+              cursor: "pointer", padding: "6px 2px", marginBottom: isOpen ? 8 : 0,
+            }}>
+              <ChevronRight size={16} color="#6B6558" style={{
+                transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", flexShrink: 0,
+              }} />
+              <span style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600 }}>{cat.label}</span>
+              <span style={{ fontSize: 11, color: "#B3ADA0", fontWeight: 600 }}>({items.length})</span>
+            </button>
+            {isOpen && items.map(item => (
+              <ItemRow key={item.id} item={item} onChangeQty={onChangeQty} onRemove={onRemove} total={totalOf(item)} />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ItemRow({ item, onChangeQty, onRemove, total }) {
+  const locations = locationsFor(item.category);
+  return (
+    <div style={{ padding: "10px 4px", borderBottom: "1px solid #EEEBE4" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: total === 0 ? "#B4231F" : "#1F2937" }}>
+          {item.name}
+        </span>
+        <span style={{ fontSize: 11, color: "#8A8478", fontWeight: 600 }}>Total: {total}</span>
+        <button onClick={() => onRemove(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2 }}>
+          <X size={15} />
+        </button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+        {locations.map(loc => (
+          <div key={loc.id} style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "5px 6px", borderRadius: 9,
+            background: loc.soft, border: `1px solid ${loc.color}22`,
+          }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: loc.color, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {loc.name}
+            </span>
+            <button onClick={() => onChangeQty(item.id, loc.id, (item.quantities[loc.id] || 0) - 1)}
+              style={{ ...qtyBtnStyle, width: 20, height: 20, background: "#fff" }}>
+              <Minus size={10} />
+            </button>
+            <span style={{ fontSize: 12.5, fontWeight: 700, width: 16, textAlign: "center" }}>{item.quantities[loc.id] || 0}</span>
+            <button onClick={() => onChangeQty(item.id, loc.id, (item.quantities[loc.id] || 0) + 1)}
+              style={{ ...qtyBtnStyle, width: 20, height: 20, background: "#fff" }}>
+              <Plus size={10} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const qtyBtnStyle = {
+  width: 26, height: 26, borderRadius: 8, border: "1px solid #EAE7E0", background: "#fff",
+  display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6B6558", flexShrink: 0,
+};
+
+function FieldLabel({ children }) {
+  return <div style={{ fontSize: 11, fontWeight: 700, color: "#8A8478", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.3 }}>{children}</div>;
+}
+const inputStyle = {
+  width: "100%", padding: "9px 10px", borderRadius: 9, border: "1px solid #EAE7E0",
+  fontSize: 13, fontFamily: "inherit", color: "#1F2937",
+};
+
+function formatBRL(n) {
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function FinancasTab({ transacoes, onAdd, onEdit, onRemove, propName, propColor, propSoft }) {
+  const [monthCursor, setMonthCursor] = useState(() => new Date());
+  const monthKey = `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, "0")}`;
+  const monthTransacoes = transacoes
+    .filter(t => t.date && t.date.startsWith(monthKey))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const receitas = monthTransacoes.filter(t => t.kind === "receita").reduce((s, t) => s + t.amount, 0);
+  const despesas = monthTransacoes.filter(t => t.kind === "despesa").reduce((s, t) => s + t.amount, 0);
+  const saldo = receitas - despesas;
+
+  function goMonth(delta) { setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + delta, 1)); }
+
+  return (
+    <div style={{ padding: "14px 12px 90px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <button onClick={() => goMonth(-1)} style={navBtnStyle}><ChevronLeft size={17} /></button>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600 }}>
+          {MONTH_NAMES[monthCursor.getMonth()]} {monthCursor.getFullYear()}
+        </div>
+        <button onClick={() => goMonth(1)} style={navBtnStyle}><ChevronRight size={17} /></button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+        <div style={{ padding: 12, borderRadius: 12, background: "#E6F4F2" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#0F766E", marginBottom: 4 }}>
+            <TrendingUp size={13} /> Receitas
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{formatBRL(receitas)}</div>
+        </div>
+        <div style={{ padding: 12, borderRadius: 12, background: "#FBF0E4" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#B45309", marginBottom: 4 }}>
+            <TrendingDown size={13} /> Despesas
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{formatBRL(despesas)}</div>
+        </div>
+      </div>
+      <div style={{
+        padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 16,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#8A8478" }}>Saldo do mês</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: saldo >= 0 ? "#0F766E" : "#B4231F" }}>{formatBRL(saldo)}</span>
+      </div>
+
+      <button onClick={onAdd} className="btn-primary" style={{
+        width: "100%", padding: "11px", borderRadius: 10, fontSize: 13.5, fontWeight: 600,
+        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 16,
+      }}>
+        <Plus size={15} /> Novo lançamento
+      </button>
+
+      {monthTransacoes.length === 0 && (
+        <div style={{ textAlign: "center", color: "#B3ADA0", fontSize: 12.5, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <Wallet size={18} />
+          Nenhum lançamento neste mês.
+        </div>
+      )}
+
+      {monthTransacoes.map(t => (
+        <button key={t.id} onClick={() => onEdit(t)} style={{
+          width: "100%", textAlign: "left", padding: 10, borderRadius: 10, border: "1px solid #EEEBE4", marginBottom: 8,
+          display: "flex", alignItems: "center", gap: 8, background: "#fff", cursor: "pointer",
+        }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            background: t.kind === "receita" ? "#E6F4F2" : "#FBF0E4",
+          }}>
+            {t.kind === "receita"
+              ? <TrendingUp size={13} color="#0F766E" />
+              : <TrendingDown size={13} color="#B45309" />}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t.description}</div>
+            <div style={{ fontSize: 11, color: "#8A8478" }}>
+              {t.propertyId ? propName(t.propertyId) + " · " : ""}{parseKey(t.date).toLocaleDateString("pt-BR")}
+            </div>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.kind === "receita" ? "#0F766E" : "#B45309" }}>
+            {t.kind === "receita" ? "+" : "-"}{formatBRL(t.amount)}
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); onRemove(t.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#B3ADA0", padding: 2 }}>
+            <Trash2 size={13} />
+          </button>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AddTransacaoModal({ initial, onClose, onSave }) {
+  const isEdit = !!initial;
+  const [kind, setKind] = useState(initial?.kind || "receita");
+  const [propertyId, setPropertyId] = useState(initial?.propertyId || PROPERTIES[0].id);
+  const [description, setDescription] = useState(initial?.description || "");
+  const [amount, setAmount] = useState(initial ? String(initial.amount).replace(".", ",") : "");
+  const [date, setDate] = useState(initial?.date || toKey(new Date()));
+
+  const parsedAmount = Number(amount.replace(",", "."));
+  const invalid = !description.trim() || !amount || isNaN(parsedAmount) || parsedAmount <= 0;
+
+  function handleSave() {
+    if (invalid) return;
+    onSave({ kind, propertyId, description: description.trim(), amount: parsedAmount, date }, isEdit ? initial.id : null);
+  }
+
+  return (
+    <ModalShell title={isEdit ? "Editar lançamento" : "Novo lançamento"} onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div>
+          <FieldLabel>Tipo</FieldLabel>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setKind("receita")}
+              style={{
+                flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                border: `1.5px solid ${kind === "receita" ? "#0F766E" : "#EAE7E0"}`,
+                background: kind === "receita" ? "#E6F4F2" : "#fff",
+                color: kind === "receita" ? "#0F766E" : "#6B6558",
+              }}>Receita</button>
+            <button onClick={() => setKind("despesa")}
+              style={{
+                flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                border: `1.5px solid ${kind === "despesa" ? "#B45309" : "#EAE7E0"}`,
+                background: kind === "despesa" ? "#FBF0E4" : "#fff",
+                color: kind === "despesa" ? "#B45309" : "#6B6558",
+              }}>Despesa</button>
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Imóvel</FieldLabel>
+          <div style={{ display: "flex", gap: 8 }}>
+            {PROPERTIES.map(p => (
+              <button key={p.id} onClick={() => setPropertyId(p.id)}
+                style={{
+                  flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                  border: `1.5px solid ${propertyId === p.id ? p.color : "#EAE7E0"}`,
+                  background: propertyId === p.id ? p.soft : "#fff",
+                  color: propertyId === p.id ? p.color : "#6B6558",
+                }}>{p.name}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Descrição</FieldLabel>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Diária Airbnb, Produtos de limpeza..." style={inputStyle} />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Valor (R$)</FieldLabel>
+            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Data</FieldLabel>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+        <button className="btn-primary" disabled={invalid} onClick={handleSave}
+          style={{ padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginTop: 4, cursor: invalid ? "not-allowed" : "pointer", opacity: invalid ? 0.5 : 1 }}>
+          {isEdit ? "Salvar alterações" : "Salvar lançamento"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
