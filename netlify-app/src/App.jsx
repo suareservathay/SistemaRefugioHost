@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CalendarDays, CalendarPlus, Brush, Wrench, LogIn, LogOut, MoreHorizontal, Home, ClipboardCheck, Wallet, TrendingUp, TrendingDown, ListChecks, CheckCircle2, Circle, X, Package, Minus, Search, RefreshCw, Link2, Loader2, ImagePlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CalendarDays, CalendarPlus, Brush, Wrench, LogIn, LogOut, MoreHorizontal, Home, ClipboardCheck, Wallet, TrendingUp, TrendingDown, ListChecks, CheckCircle2, Circle, X, Package, Minus, Search, RefreshCw, Link2, Loader2, ImagePlus, DatabaseBackup, Download, Upload } from "lucide-react";
+import { storage } from "./storage";
 
 // ---------- Config ----------
 const PROPERTIES = [
@@ -162,6 +163,7 @@ export default function App() {
   const [reservaModal, setReservaModal] = useState(null);
   const [showImportPrint, setShowImportPrint] = useState(false);
   const [showImportPagamentos, setShowImportPagamentos] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = useCallback((msg) => {
@@ -173,17 +175,17 @@ export default function App() {
     (async () => {
       try {
         const [evRes, resRes, verRes, customRes, transRes, transVerRes, tarefasRes, estoqueRes, estoqueVerRes, concRes, customCatRes] = await Promise.allSettled([
-          window.storage.get(EVENTS_KEY, false),
-          window.storage.get(RESERVAS_KEY, false),
-          window.storage.get(SEED_VERSION_KEY, false),
-          window.storage.get(CUSTOM_TASK_TYPES_KEY, false),
-          window.storage.get(TRANSACOES_KEY, false),
-          window.storage.get(TRANSACOES_SEED_VERSION_KEY, false),
-          window.storage.get(TAREFAS_KEY, false),
-          window.storage.get(ESTOQUE_KEY, false),
-          window.storage.get(ESTOQUE_SEED_VERSION_KEY, false),
-          window.storage.get(CONCORRENTES_KEY, false),
-          window.storage.get(CUSTOM_ESTOQUE_CATEGORIAS_KEY, false),
+          storage.get(EVENTS_KEY, false),
+          storage.get(RESERVAS_KEY, false),
+          storage.get(SEED_VERSION_KEY, false),
+          storage.get(CUSTOM_TASK_TYPES_KEY, false),
+          storage.get(TRANSACOES_KEY, false),
+          storage.get(TRANSACOES_SEED_VERSION_KEY, false),
+          storage.get(TAREFAS_KEY, false),
+          storage.get(ESTOQUE_KEY, false),
+          storage.get(ESTOQUE_SEED_VERSION_KEY, false),
+          storage.get(CONCORRENTES_KEY, false),
+          storage.get(CUSTOM_ESTOQUE_CATEGORIAS_KEY, false),
         ]);
         if (evRes.status === "fulfilled" && evRes.value) {
           setEvents(JSON.parse(evRes.value.value));
@@ -219,8 +221,8 @@ export default function App() {
             const already = new Set(currentEstoque.map(i => i.id));
             const toAdd = ESTOQUE_SEED.filter(i => !already.has(i.id));
             currentEstoque = [...currentEstoque, ...toAdd];
-            window.storage.set(ESTOQUE_KEY, JSON.stringify(currentEstoque), false).catch(() => {});
-            window.storage.set(ESTOQUE_SEED_VERSION_KEY, String(CURRENT_ESTOQUE_SEED_VERSION), false).catch(() => {});
+            storage.set(ESTOQUE_KEY, JSON.stringify(currentEstoque), false).catch(() => {});
+            storage.set(ESTOQUE_SEED_VERSION_KEY, String(CURRENT_ESTOQUE_SEED_VERSION), false).catch(() => {});
           }
           setEstoque(currentEstoque);
         }
@@ -231,8 +233,8 @@ export default function App() {
             const already = new Set(currentTrans.map(t => t.id));
             const toAdd = SEED_TRANSACOES.filter(t => !already.has(t.id));
             currentTrans = [...currentTrans, ...toAdd];
-            window.storage.set(TRANSACOES_KEY, JSON.stringify(currentTrans), false).catch(() => {});
-            window.storage.set(TRANSACOES_SEED_VERSION_KEY, String(CURRENT_TRANSACOES_SEED_VERSION), false).catch(() => {});
+            storage.set(TRANSACOES_KEY, JSON.stringify(currentTrans), false).catch(() => {});
+            storage.set(TRANSACOES_SEED_VERSION_KEY, String(CURRENT_TRANSACOES_SEED_VERSION), false).catch(() => {});
           }
           setTransacoes(currentTrans);
         }
@@ -251,7 +253,7 @@ export default function App() {
             current = { ...current, [pid]: [...(current[pid] || []), ...toAdd] };
           }
           changed = true;
-          window.storage.set(SEED_VERSION_KEY, String(CURRENT_SEED_VERSION), false).catch(() => {});
+          storage.set(SEED_VERSION_KEY, String(CURRENT_SEED_VERSION), false).catch(() => {});
         } else {
           for (const pid of Object.keys(SEED_RESERVAS)) {
             if (!current[pid] || current[pid].length === 0) {
@@ -270,26 +272,26 @@ export default function App() {
           });
         }
         setReservas(current);
-        if (changed) window.storage.set(RESERVAS_KEY, JSON.stringify(current), false).catch(() => {});
+        if (changed) storage.set(RESERVAS_KEY, JSON.stringify(current), false).catch(() => {});
       } catch (e) {}
     })();
   }, []);
 
   const persistEvents = useCallback(async (next) => {
     setEvents(next);
-    try { await window.storage.set(EVENTS_KEY, JSON.stringify(next), false); return true; }
+    try { await storage.set(EVENTS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
   const persistCustomTypes = useCallback(async (next) => {
     setCustomTaskTypes(next);
-    try { await window.storage.set(CUSTOM_TASK_TYPES_KEY, JSON.stringify(next), false); }
+    try { await storage.set(CUSTOM_TASK_TYPES_KEY, JSON.stringify(next), false); }
     catch (e) {}
   }, []);
 
   const persistTransacoes = useCallback(async (next) => {
     setTransacoes(next);
-    try { await window.storage.set(TRANSACOES_KEY, JSON.stringify(next), false); return true; }
+    try { await storage.set(TRANSACOES_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -331,7 +333,7 @@ export default function App() {
 
   const persistTarefas = useCallback(async (next) => {
     setTarefas(next);
-    try { await window.storage.set(TAREFAS_KEY, JSON.stringify(next), false); return true; }
+    try { await storage.set(TAREFAS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -348,7 +350,7 @@ export default function App() {
 
   const persistEstoque = useCallback(async (next) => {
     setEstoque(next);
-    try { await window.storage.set(ESTOQUE_KEY, JSON.stringify(next), false); return true; }
+    try { await storage.set(ESTOQUE_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -391,7 +393,7 @@ export default function App() {
 
   const persistCustomEstoqueCategorias = useCallback(async (next) => {
     setCustomEstoqueCategorias(next);
-    try { await window.storage.set(CUSTOM_ESTOQUE_CATEGORIAS_KEY, JSON.stringify(next), false); }
+    try { await storage.set(CUSTOM_ESTOQUE_CATEGORIAS_KEY, JSON.stringify(next), false); }
     catch (e) {}
   }, []);
   function addEstoqueCategoria(label) {
@@ -406,80 +408,25 @@ export default function App() {
 
   const persistConcorrentes = useCallback(async (next) => {
     setConcorrentes(next);
-    try { await window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false); return true; }
+    try { await storage.set(CONCORRENTES_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
   async function addConcorrente(url, label) {
-    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, label: label || "", analysis: null, updatedAt: null, status: "idle" };
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, label: label || "", notes: "", updatedAt: null };
     const next = [...concorrentes, item];
-    const ok = await persistConcorrentes(next);
-    if (ok) analisarConcorrente(item.id, [...next]);
-    return ok;
+    return persistConcorrentes(next);
   }
   function removeConcorrente(id) {
     persistConcorrentes(concorrentes.filter(c => c.id !== id));
   }
-
-  async function analisarConcorrente(id, listAtual) {
-    const list = listAtual || concorrentes;
-    setConcorrentes(list.map(c => c.id === id ? { ...c, status: "loading" } : c));
-    const alvo = list.find(c => c.id === id);
-    if (!alvo) return;
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          messages: [{
-            role: "user",
-            content: `Pesquise na web informações públicas sobre este anúncio do Airbnb: ${alvo.url}\n\n` +
-              `Se não conseguir acessar a página diretamente, busque pelo nome/local do anúncio e por anúncios similares na região para estimar o padrão. ` +
-              `Escreva uma análise curta e direta (use tópicos), cobrindo: ` +
-              `1) Estratégia do anúncio (o que ele destaca, diferenciais); ` +
-              `2) Padrão de precificação (faixa de preço por noite, se encontrar); ` +
-              `3) Estilo de descrição/fotos (o que parece funcionar); ` +
-              `4) Avaliação geral e como isso se compara ao preço de mercado da região. ` +
-              `Seja honesto se a informação pública for limitada. Responda em português, de forma objetiva.`,
-          }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-        }),
-      });
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseErr) {
-        throw new Error(`Resposta inválida da API (status ${response.status})`);
-      }
-      if (!response.ok) {
-        const apiMsg = data?.error?.message || `Erro ${response.status}`;
-        throw new Error(apiMsg);
-      }
-      const text = (data.content || [])
-        .filter(b => b.type === "text")
-        .map(b => b.text)
-        .join("\n\n")
-        .trim();
-      const finalText = text || "A busca não retornou texto — pode ser que o modelo não tenha encontrado nada relevante.";
-      setConcorrentes(prev => {
-        const next = prev.map(c => c.id === id ? { ...c, analysis: finalText, status: "done", errorMsg: null, updatedAt: new Date().toISOString() } : c);
-        window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false).catch(() => {});
-        return next;
-      });
-    } catch (e) {
-      setConcorrentes(prev => {
-        const next = prev.map(c => c.id === id ? { ...c, status: "error", errorMsg: e?.message || String(e) } : c);
-        window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false).catch(() => {});
-        return next;
-      });
-    }
+  function updateConcorrenteNotes(id, notes) {
+    persistConcorrentes(concorrentes.map(c => c.id === id ? { ...c, notes, updatedAt: new Date().toISOString() } : c));
   }
 
   const persistReservas = useCallback(async (next) => {
     setReservas(next);
-    try { await window.storage.set(RESERVAS_KEY, JSON.stringify(next), false); return true; }
+    try { await storage.set(RESERVAS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar a reserva."); return false; }
   }, [showToast]);
 
@@ -594,6 +541,63 @@ export default function App() {
     if (ok !== false) showToast(`${novasReservas.length} reserva(s) importada(s).`);
   }
 
+  function exportBackup() {
+    const payload = {
+      formato: "backup-calendario-airbnb", versao: 1, exportadoEm: new Date().toISOString(),
+      events, reservas, customTaskTypes, transacoes, tarefas, estoque, customEstoqueCategorias, concorrentes,
+      seedVersions: {
+        [SEED_VERSION_KEY]: CURRENT_SEED_VERSION,
+        [TRANSACOES_SEED_VERSION_KEY]: CURRENT_TRANSACOES_SEED_VERSION,
+        [ESTOQUE_SEED_VERSION_KEY]: CURRENT_ESTOQUE_SEED_VERSION,
+      },
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const dataHoje = toKey(new Date());
+    a.href = url;
+    a.download = `backup-calendario-chales-${dataHoje}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("Backup baixado.");
+  }
+
+  async function importBackup(file) {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (data.formato !== "backup-calendario-airbnb") throw new Error("Esse não parece ser um arquivo de backup válido.");
+
+      const sets = [
+        [data.events, setEvents, EVENTS_KEY],
+        [data.reservas, setReservas, RESERVAS_KEY],
+        [data.customTaskTypes, setCustomTaskTypes, CUSTOM_TASK_TYPES_KEY],
+        [data.transacoes, setTransacoes, TRANSACOES_KEY],
+        [data.tarefas, setTarefas, TAREFAS_KEY],
+        [data.estoque, setEstoque, ESTOQUE_KEY],
+        [data.customEstoqueCategorias, setCustomEstoqueCategorias, CUSTOM_ESTOQUE_CATEGORIAS_KEY],
+        [data.concorrentes, setConcorrentes, CONCORRENTES_KEY],
+      ];
+      for (const [value, setter, key] of sets) {
+        if (value === undefined) continue;
+        setter(value);
+        await storage.set(key, JSON.stringify(value), false);
+      }
+      if (data.seedVersions) {
+        for (const [key, value] of Object.entries(data.seedVersions)) {
+          await storage.set(key, String(value), false);
+        }
+      }
+      showToast("Backup restaurado com sucesso.");
+      return true;
+    } catch (e) {
+      showToast(`Não consegui importar: ${e?.message || e}`);
+      return false;
+    }
+  }
+
   const dayTasks = tasksOnDay(selectedDay);
   const selectedDate = parseKey(selectedDay);
 
@@ -641,6 +645,12 @@ export default function App() {
             Hoje
           </button>
         )}
+        <button onClick={() => setShowBackup(true)} title="Backup" style={{
+          width: 32, height: 32, borderRadius: 9, border: "1px solid #EAE7E0", background: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
+        }}>
+          <DatabaseBackup size={15} color="#6B6558" />
+        </button>
       </header>
 
       {/* Content */}
@@ -843,7 +853,7 @@ export default function App() {
         )}
 
         {tab === "concorrentes" && (
-          <ConcorrentesTab concorrentes={concorrentes} onAdd={addConcorrente} onRemove={removeConcorrente} onRefresh={(id) => analisarConcorrente(id)} />
+          <ConcorrentesTab concorrentes={concorrentes} onAdd={addConcorrente} onRemove={removeConcorrente} onSaveNotes={updateConcorrenteNotes} />
         )}
 
         {tab === "financas" && (
@@ -896,6 +906,14 @@ export default function App() {
             const ok = editId ? await updateTransacao(editId, data) : await addTransacao(data);
             if (ok) { setTransacaoModal(null); showToast(editId ? "Lançamento atualizado." : "Lançamento salvo."); }
           }}
+        />
+      )}
+
+      {showBackup && (
+        <BackupModal
+          onClose={() => setShowBackup(false)}
+          onExport={exportBackup}
+          onImport={importBackup}
         />
       )}
 
@@ -975,6 +993,83 @@ function ModalShell({ title, onClose, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+function BackupModal({ onClose, onExport, onImport }) {
+  const [file, setFile] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  async function handleImport() {
+    if (!file) return;
+    setImporting(true);
+    const ok = await onImport(file);
+    setImporting(false);
+    if (ok) onClose();
+  }
+
+  return (
+    <ModalShell title="Backup dos dados" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Exportar backup</div>
+          <p style={{ fontSize: 12, color: "#6B6558", lineHeight: 1.5, margin: "0 0 10px" }}>
+            Baixa um arquivo com tudo: reservas, tarefas, estoque e finanças. Guarde de vez em quando,
+            principalmente antes de trocar de navegador ou aparelho.
+          </p>
+          <button onClick={onExport} className="btn-primary" style={{
+            width: "100%", padding: "11px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 7, cursor: "pointer",
+          }}>
+            <Download size={15} /> Baixar backup agora
+          </button>
+        </div>
+
+        <div style={{ borderTop: "1px solid #EEEBE4", paddingTop: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Importar backup</div>
+          <p style={{ fontSize: 12, color: "#6B6558", lineHeight: 1.5, margin: "0 0 10px" }}>
+            Restaura um arquivo salvo anteriormente. <b>Isso substitui todos os dados atuais</b> — use se
+            perdeu informações ou quer levar os dados pra outro navegador/aparelho.
+          </p>
+          <label style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            border: "1.5px dashed #D8D3C7", borderRadius: 10, padding: "14px 10px",
+            cursor: "pointer", fontSize: 13, color: "#6B6558", marginBottom: 10,
+          }}>
+            <Upload size={15} />
+            {file ? file.name : "Escolher arquivo de backup"}
+            <input type="file" accept="application/json,.json" style={{ display: "none" }}
+              onChange={(e) => { setFile(e.target.files?.[0] || null); setConfirming(false); }} />
+          </label>
+
+          {file && !confirming && (
+            <button onClick={() => setConfirming(true)} style={{
+              width: "100%", padding: "11px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+              border: "1px solid #EAE7E0", background: "#fff", color: "#1F2937",
+            }}>
+              Continuar
+            </button>
+          )}
+
+          {file && confirming && (
+            <div style={{ padding: 12, borderRadius: 10, background: "#FBF0E4", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 12.5, color: "#7A4A0F" }}>
+                Tem certeza? Os dados atuais serão substituídos pelos do arquivo <b>{file.name}</b>.
+              </div>
+              <button onClick={handleImport} disabled={importing} style={{
+                padding: "10px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: importing ? "not-allowed" : "pointer",
+                border: "none", background: "#B45309", color: "#fff", opacity: importing ? 0.6 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              }}>
+                {importing ? <Loader2 size={15} className="spin" /> : <Upload size={15} />}
+                {importing ? "Restaurando..." : "Sim, substituir e importar"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -1697,7 +1792,7 @@ function TarefaRow({ tarefa, onToggle, onRemove }) {
   );
 }
 
-function ConcorrentesTab({ concorrentes, onAdd, onRemove, onRefresh }) {
+function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -1726,14 +1821,13 @@ function ConcorrentesTab({ concorrentes, onAdd, onRemove, onRefresh }) {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             cursor: (!url.trim() || adding) ? "not-allowed" : "pointer", opacity: (!url.trim() || adding) ? 0.5 : 1,
           }}>
-          {adding ? <Loader2 size={15} className="spin" /> : <Plus size={15} />}
-          {adding ? "Analisando..." : "Adicionar e analisar"}
+          <Plus size={15} /> Adicionar
         </button>
       </div>
 
       <p style={{ fontSize: 11, color: "#B3ADA0", lineHeight: 1.5, marginTop: -8, marginBottom: 18 }}>
-        A análise é feita por busca na web — quando o Airbnb não expõe os dados publicamente, o resultado pode vir
-        limitado. Cadastre uma vez; depois use "Atualizar" em cada card para refazer a pesquisa.
+        Nesta versão o app só guarda o link e suas próprias anotações — a pesquisa automática por IA
+        só está disponível na versão de dentro do Claude, que tem acesso à busca na web embutida.
       </p>
 
       {concorrentes.length === 0 && (
@@ -1744,52 +1838,49 @@ function ConcorrentesTab({ concorrentes, onAdd, onRemove, onRefresh }) {
       )}
 
       {concorrentes.map(c => (
-        <div key={c.id} style={{ padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.label || "Concorrente"}</div>
-              <a href={c.url} target="_blank" rel="noreferrer" style={{
-                fontSize: 11, color: "#0F766E", display: "flex", alignItems: "center", gap: 4,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                <Link2 size={11} /> {c.url}
-              </a>
-            </div>
-            <button onClick={() => onRemove(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2, flexShrink: 0 }}>
-              <X size={16} />
-            </button>
-          </div>
-
-          {c.status === "loading" && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8A8478", padding: "8px 0" }}>
-              <Loader2 size={14} className="spin" /> Pesquisando na web...
-            </div>
-          )}
-          {c.status === "error" && (
-            <div style={{ fontSize: 12, color: "#B4231F", padding: "6px 0" }}>
-              Não consegui concluir a análise{c.errorMsg ? `: ${c.errorMsg}` : "."} Tente atualizar.
-            </div>
-          )}
-          {c.analysis && c.status !== "loading" && (
-            <div style={{ fontSize: 12.5, color: "#1F2937", lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 8 }}>
-              {c.analysis}
-            </div>
-          )}
-
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 10.5, color: "#B3ADA0" }}>
-              {c.updatedAt ? `Atualizado em ${new Date(c.updatedAt).toLocaleDateString("pt-BR")}` : "Ainda não analisado"}
-            </span>
-            <button onClick={() => onRefresh(c.id)} disabled={c.status === "loading"} style={{
-              display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid #EAE7E0",
-              borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 600, color: "#1F2937",
-              cursor: c.status === "loading" ? "not-allowed" : "pointer", opacity: c.status === "loading" ? 0.5 : 1,
-            }}>
-              <RefreshCw size={12} /> Atualizar
-            </button>
-          </div>
-        </div>
+        <ConcorrenteCard key={c.id} concorrente={c} onRemove={onRemove} onSaveNotes={onSaveNotes} />
       ))}
+    </div>
+  );
+}
+
+function ConcorrenteCard({ concorrente: c, onRemove, onSaveNotes }) {
+  const [notes, setNotes] = useState(c.notes || "");
+  const dirty = notes !== (c.notes || "");
+
+  return (
+    <div style={{ padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.label || "Concorrente"}</div>
+          <a href={c.url} target="_blank" rel="noreferrer" style={{
+            fontSize: 11, color: "#0F766E", display: "flex", alignItems: "center", gap: 4,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            <Link2 size={11} /> {c.url}
+          </a>
+        </div>
+        <button onClick={() => onRemove(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2, flexShrink: 0 }}>
+          <X size={16} />
+        </button>
+      </div>
+
+      <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+        placeholder="Suas anotações: preço observado, diferenciais, fotos, o que parece funcionar..."
+        style={{ ...inputStyle, height: 80, resize: "vertical", marginBottom: 8 }} />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 10.5, color: "#B3ADA0" }}>
+          {c.updatedAt ? `Atualizado em ${new Date(c.updatedAt).toLocaleDateString("pt-BR")}` : "Sem anotações ainda"}
+        </span>
+        <button onClick={() => onSaveNotes(c.id, notes)} disabled={!dirty} style={{
+          display: "flex", alignItems: "center", gap: 5, background: dirty ? "#1F2937" : "#fff",
+          border: "1px solid #EAE7E0", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 600,
+          color: dirty ? "#fff" : "#B3ADA0", cursor: dirty ? "pointer" : "not-allowed",
+        }}>
+          Salvar anotação
+        </button>
+      </div>
     </div>
   );
 }
