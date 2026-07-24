@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CalendarDays, CalendarPlus, Brush, Wrench, LogIn, LogOut, MoreHorizontal, Home, ClipboardCheck, Wallet, TrendingUp, TrendingDown, ListChecks, CheckCircle2, Circle, X, Package, Minus, Search, RefreshCw, Link2, Loader2, ImagePlus, DatabaseBackup, Download, Upload } from "lucide-react";
-import { storage } from "./storage";
 
 // ---------- Config ----------
 const PROPERTIES = [
@@ -175,17 +174,17 @@ export default function App() {
     (async () => {
       try {
         const [evRes, resRes, verRes, customRes, transRes, transVerRes, tarefasRes, estoqueRes, estoqueVerRes, concRes, customCatRes] = await Promise.allSettled([
-          storage.get(EVENTS_KEY, false),
-          storage.get(RESERVAS_KEY, false),
-          storage.get(SEED_VERSION_KEY, false),
-          storage.get(CUSTOM_TASK_TYPES_KEY, false),
-          storage.get(TRANSACOES_KEY, false),
-          storage.get(TRANSACOES_SEED_VERSION_KEY, false),
-          storage.get(TAREFAS_KEY, false),
-          storage.get(ESTOQUE_KEY, false),
-          storage.get(ESTOQUE_SEED_VERSION_KEY, false),
-          storage.get(CONCORRENTES_KEY, false),
-          storage.get(CUSTOM_ESTOQUE_CATEGORIAS_KEY, false),
+          window.storage.get(EVENTS_KEY, false),
+          window.storage.get(RESERVAS_KEY, false),
+          window.storage.get(SEED_VERSION_KEY, false),
+          window.storage.get(CUSTOM_TASK_TYPES_KEY, false),
+          window.storage.get(TRANSACOES_KEY, false),
+          window.storage.get(TRANSACOES_SEED_VERSION_KEY, false),
+          window.storage.get(TAREFAS_KEY, false),
+          window.storage.get(ESTOQUE_KEY, false),
+          window.storage.get(ESTOQUE_SEED_VERSION_KEY, false),
+          window.storage.get(CONCORRENTES_KEY, false),
+          window.storage.get(CUSTOM_ESTOQUE_CATEGORIAS_KEY, false),
         ]);
         if (evRes.status === "fulfilled" && evRes.value) {
           setEvents(JSON.parse(evRes.value.value));
@@ -221,8 +220,8 @@ export default function App() {
             const already = new Set(currentEstoque.map(i => i.id));
             const toAdd = ESTOQUE_SEED.filter(i => !already.has(i.id));
             currentEstoque = [...currentEstoque, ...toAdd];
-            storage.set(ESTOQUE_KEY, JSON.stringify(currentEstoque), false).catch(() => {});
-            storage.set(ESTOQUE_SEED_VERSION_KEY, String(CURRENT_ESTOQUE_SEED_VERSION), false).catch(() => {});
+            window.storage.set(ESTOQUE_KEY, JSON.stringify(currentEstoque), false).catch(() => {});
+            window.storage.set(ESTOQUE_SEED_VERSION_KEY, String(CURRENT_ESTOQUE_SEED_VERSION), false).catch(() => {});
           }
           setEstoque(currentEstoque);
         }
@@ -233,8 +232,8 @@ export default function App() {
             const already = new Set(currentTrans.map(t => t.id));
             const toAdd = SEED_TRANSACOES.filter(t => !already.has(t.id));
             currentTrans = [...currentTrans, ...toAdd];
-            storage.set(TRANSACOES_KEY, JSON.stringify(currentTrans), false).catch(() => {});
-            storage.set(TRANSACOES_SEED_VERSION_KEY, String(CURRENT_TRANSACOES_SEED_VERSION), false).catch(() => {});
+            window.storage.set(TRANSACOES_KEY, JSON.stringify(currentTrans), false).catch(() => {});
+            window.storage.set(TRANSACOES_SEED_VERSION_KEY, String(CURRENT_TRANSACOES_SEED_VERSION), false).catch(() => {});
           }
           setTransacoes(currentTrans);
         }
@@ -253,7 +252,7 @@ export default function App() {
             current = { ...current, [pid]: [...(current[pid] || []), ...toAdd] };
           }
           changed = true;
-          storage.set(SEED_VERSION_KEY, String(CURRENT_SEED_VERSION), false).catch(() => {});
+          window.storage.set(SEED_VERSION_KEY, String(CURRENT_SEED_VERSION), false).catch(() => {});
         } else {
           for (const pid of Object.keys(SEED_RESERVAS)) {
             if (!current[pid] || current[pid].length === 0) {
@@ -272,26 +271,26 @@ export default function App() {
           });
         }
         setReservas(current);
-        if (changed) storage.set(RESERVAS_KEY, JSON.stringify(current), false).catch(() => {});
+        if (changed) window.storage.set(RESERVAS_KEY, JSON.stringify(current), false).catch(() => {});
       } catch (e) {}
     })();
   }, []);
 
   const persistEvents = useCallback(async (next) => {
     setEvents(next);
-    try { await storage.set(EVENTS_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(EVENTS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
   const persistCustomTypes = useCallback(async (next) => {
     setCustomTaskTypes(next);
-    try { await storage.set(CUSTOM_TASK_TYPES_KEY, JSON.stringify(next), false); }
+    try { await window.storage.set(CUSTOM_TASK_TYPES_KEY, JSON.stringify(next), false); }
     catch (e) {}
   }, []);
 
   const persistTransacoes = useCallback(async (next) => {
     setTransacoes(next);
-    try { await storage.set(TRANSACOES_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(TRANSACOES_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -333,7 +332,7 @@ export default function App() {
 
   const persistTarefas = useCallback(async (next) => {
     setTarefas(next);
-    try { await storage.set(TAREFAS_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(TAREFAS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -350,7 +349,7 @@ export default function App() {
 
   const persistEstoque = useCallback(async (next) => {
     setEstoque(next);
-    try { await storage.set(ESTOQUE_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(ESTOQUE_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -393,7 +392,7 @@ export default function App() {
 
   const persistCustomEstoqueCategorias = useCallback(async (next) => {
     setCustomEstoqueCategorias(next);
-    try { await storage.set(CUSTOM_ESTOQUE_CATEGORIAS_KEY, JSON.stringify(next), false); }
+    try { await window.storage.set(CUSTOM_ESTOQUE_CATEGORIAS_KEY, JSON.stringify(next), false); }
     catch (e) {}
   }, []);
   function addEstoqueCategoria(label) {
@@ -408,25 +407,80 @@ export default function App() {
 
   const persistConcorrentes = useCallback(async (next) => {
     setConcorrentes(next);
-    try { await storage.set(CONCORRENTES_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
   async function addConcorrente(url, label) {
-    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, label: label || "", notes: "", updatedAt: null };
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, label: label || "", analysis: null, updatedAt: null, status: "idle" };
     const next = [...concorrentes, item];
-    return persistConcorrentes(next);
+    const ok = await persistConcorrentes(next);
+    if (ok) analisarConcorrente(item.id, [...next]);
+    return ok;
   }
   function removeConcorrente(id) {
     persistConcorrentes(concorrentes.filter(c => c.id !== id));
   }
-  function updateConcorrenteNotes(id, notes) {
-    persistConcorrentes(concorrentes.map(c => c.id === id ? { ...c, notes, updatedAt: new Date().toISOString() } : c));
+
+  async function analisarConcorrente(id, listAtual) {
+    const list = listAtual || concorrentes;
+    setConcorrentes(list.map(c => c.id === id ? { ...c, status: "loading" } : c));
+    const alvo = list.find(c => c.id === id);
+    if (!alvo) return;
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: `Pesquise na web informações públicas sobre este anúncio do Airbnb: ${alvo.url}\n\n` +
+              `Se não conseguir acessar a página diretamente, busque pelo nome/local do anúncio e por anúncios similares na região para estimar o padrão. ` +
+              `Escreva uma análise curta e direta (use tópicos), cobrindo: ` +
+              `1) Estratégia do anúncio (o que ele destaca, diferenciais); ` +
+              `2) Padrão de precificação (faixa de preço por noite, se encontrar); ` +
+              `3) Estilo de descrição/fotos (o que parece funcionar); ` +
+              `4) Avaliação geral e como isso se compara ao preço de mercado da região. ` +
+              `Seja honesto se a informação pública for limitada. Responda em português, de forma objetiva.`,
+          }],
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+        }),
+      });
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        throw new Error(`Resposta inválida da API (status ${response.status})`);
+      }
+      if (!response.ok) {
+        const apiMsg = data?.error?.message || `Erro ${response.status}`;
+        throw new Error(apiMsg);
+      }
+      const text = (data.content || [])
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("\n\n")
+        .trim();
+      const finalText = text || "A busca não retornou texto — pode ser que o modelo não tenha encontrado nada relevante.";
+      setConcorrentes(prev => {
+        const next = prev.map(c => c.id === id ? { ...c, analysis: finalText, status: "done", errorMsg: null, updatedAt: new Date().toISOString() } : c);
+        window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false).catch(() => {});
+        return next;
+      });
+    } catch (e) {
+      setConcorrentes(prev => {
+        const next = prev.map(c => c.id === id ? { ...c, status: "error", errorMsg: e?.message || String(e) } : c);
+        window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false).catch(() => {});
+        return next;
+      });
+    }
   }
 
   const persistReservas = useCallback(async (next) => {
     setReservas(next);
-    try { await storage.set(RESERVAS_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(RESERVAS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar a reserva."); return false; }
   }, [showToast]);
 
@@ -583,11 +637,11 @@ export default function App() {
       for (const [value, setter, key] of sets) {
         if (value === undefined) continue;
         setter(value);
-        await storage.set(key, JSON.stringify(value), false);
+        await window.storage.set(key, JSON.stringify(value), false);
       }
       if (data.seedVersions) {
         for (const [key, value] of Object.entries(data.seedVersions)) {
-          await storage.set(key, String(value), false);
+          await window.storage.set(key, String(value), false);
         }
       }
       showToast("Backup restaurado com sucesso.");
@@ -853,7 +907,7 @@ export default function App() {
         )}
 
         {tab === "concorrentes" && (
-          <ConcorrentesTab concorrentes={concorrentes} onAdd={addConcorrente} onRemove={removeConcorrente} onSaveNotes={updateConcorrenteNotes} />
+          <ConcorrentesTab concorrentes={concorrentes} onAdd={addConcorrente} onRemove={removeConcorrente} onRefresh={(id) => analisarConcorrente(id)} />
         )}
 
         {tab === "financas" && (
@@ -937,6 +991,7 @@ export default function App() {
           initial={reservaModal.mode === "edit" ? reservaModal.reserva : null}
           onClose={() => setReservaModal(null)}
           onSave={(pid, data, editId) => { saveReserva(pid, data, editId); setReservaModal(null); }}
+          onDelete={(pid, id) => { removeReserva(pid, id); setReservaModal(null); showToast("Reserva excluída."); }}
         />
       )}
 
@@ -1472,13 +1527,14 @@ function ImportarPrintModal({ onClose, onConfirm }) {
   );
 }
 
-function AddReservaModal({ defaultDateKey, initial, onClose, onSave }) {
+function AddReservaModal({ defaultDateKey, initial, onClose, onSave, onDelete }) {
   const isEdit = !!initial;
   const [propertyId, setPropertyId] = useState(initial?.propertyId || PROPERTIES[0].id);
   const [guestName, setGuestName] = useState(initial?.guestName || "");
   const [start, setStart] = useState(initial?.start || defaultDateKey);
   const [end, setEnd] = useState(initial?.end || defaultDateKey);
   const [amount, setAmount] = useState(initial?.amount != null ? String(initial.amount).replace(".", ",") : "");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   function handleSave() {
     if (!guestName.trim() || !start || !end || end <= start) return;
@@ -1529,6 +1585,36 @@ function AddReservaModal({ defaultDateKey, initial, onClose, onSave }) {
           style={{ padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginTop: 4, cursor: invalid ? "not-allowed" : "pointer", opacity: invalid ? 0.5 : 1 }}>
           {isEdit ? "Salvar alterações" : "Salvar reserva"}
         </button>
+
+        {isEdit && !confirmDelete && (
+          <button onClick={() => setConfirmDelete(true)} style={{
+            padding: "10px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+            border: "1px solid #F3D1CC", background: "#fff", color: "#B4231F",
+          }}>
+            Excluir reserva
+          </button>
+        )}
+        {isEdit && confirmDelete && (
+          <div style={{ padding: 12, borderRadius: 10, background: "#FBE9E7", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: "#7A241A" }}>
+              Excluir a reserva de <b>{guestName}</b>? Se houver um valor lançado em Finanças vinculado a ela, também será removido.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirmDelete(false)} style={{
+                flex: 1, padding: "9px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                border: "1px solid #EAE7E0", background: "#fff", color: "#6B6558",
+              }}>
+                Cancelar
+              </button>
+              <button onClick={() => onDelete(propertyId, initial.id)} style={{
+                flex: 1, padding: "9px", borderRadius: 9, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                border: "none", background: "#B4231F", color: "#fff",
+              }}>
+                Sim, excluir
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </ModalShell>
   );
@@ -1792,7 +1878,7 @@ function TarefaRow({ tarefa, onToggle, onRemove }) {
   );
 }
 
-function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
+function ConcorrentesTab({ concorrentes, onAdd, onRemove, onRefresh }) {
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -1821,13 +1907,14 @@ function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             cursor: (!url.trim() || adding) ? "not-allowed" : "pointer", opacity: (!url.trim() || adding) ? 0.5 : 1,
           }}>
-          <Plus size={15} /> Adicionar
+          {adding ? <Loader2 size={15} className="spin" /> : <Plus size={15} />}
+          {adding ? "Analisando..." : "Adicionar e analisar"}
         </button>
       </div>
 
       <p style={{ fontSize: 11, color: "#B3ADA0", lineHeight: 1.5, marginTop: -8, marginBottom: 18 }}>
-        Nesta versão o app só guarda o link e suas próprias anotações — a pesquisa automática por IA
-        só está disponível na versão de dentro do Claude, que tem acesso à busca na web embutida.
+        A análise é feita por busca na web — quando o Airbnb não expõe os dados publicamente, o resultado pode vir
+        limitado. Cadastre uma vez; depois use "Atualizar" em cada card para refazer a pesquisa.
       </p>
 
       {concorrentes.length === 0 && (
@@ -1838,49 +1925,52 @@ function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
       )}
 
       {concorrentes.map(c => (
-        <ConcorrenteCard key={c.id} concorrente={c} onRemove={onRemove} onSaveNotes={onSaveNotes} />
-      ))}
-    </div>
-  );
-}
+        <div key={c.id} style={{ padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.label || "Concorrente"}</div>
+              <a href={c.url} target="_blank" rel="noreferrer" style={{
+                fontSize: 11, color: "#0F766E", display: "flex", alignItems: "center", gap: 4,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                <Link2 size={11} /> {c.url}
+              </a>
+            </div>
+            <button onClick={() => onRemove(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2, flexShrink: 0 }}>
+              <X size={16} />
+            </button>
+          </div>
 
-function ConcorrenteCard({ concorrente: c, onRemove, onSaveNotes }) {
-  const [notes, setNotes] = useState(c.notes || "");
-  const dirty = notes !== (c.notes || "");
+          {c.status === "loading" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8A8478", padding: "8px 0" }}>
+              <Loader2 size={14} className="spin" /> Pesquisando na web...
+            </div>
+          )}
+          {c.status === "error" && (
+            <div style={{ fontSize: 12, color: "#B4231F", padding: "6px 0" }}>
+              Não consegui concluir a análise{c.errorMsg ? `: ${c.errorMsg}` : "."} Tente atualizar.
+            </div>
+          )}
+          {c.analysis && c.status !== "loading" && (
+            <div style={{ fontSize: 12.5, color: "#1F2937", lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 8 }}>
+              {c.analysis}
+            </div>
+          )}
 
-  return (
-    <div style={{ padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.label || "Concorrente"}</div>
-          <a href={c.url} target="_blank" rel="noreferrer" style={{
-            fontSize: 11, color: "#0F766E", display: "flex", alignItems: "center", gap: 4,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            <Link2 size={11} /> {c.url}
-          </a>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 10.5, color: "#B3ADA0" }}>
+              {c.updatedAt ? `Atualizado em ${new Date(c.updatedAt).toLocaleDateString("pt-BR")}` : "Ainda não analisado"}
+            </span>
+            <button onClick={() => onRefresh(c.id)} disabled={c.status === "loading"} style={{
+              display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid #EAE7E0",
+              borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 600, color: "#1F2937",
+              cursor: c.status === "loading" ? "not-allowed" : "pointer", opacity: c.status === "loading" ? 0.5 : 1,
+            }}>
+              <RefreshCw size={12} /> Atualizar
+            </button>
+          </div>
         </div>
-        <button onClick={() => onRemove(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2, flexShrink: 0 }}>
-          <X size={16} />
-        </button>
-      </div>
-
-      <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-        placeholder="Suas anotações: preço observado, diferenciais, fotos, o que parece funcionar..."
-        style={{ ...inputStyle, height: 80, resize: "vertical", marginBottom: 8 }} />
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 10.5, color: "#B3ADA0" }}>
-          {c.updatedAt ? `Atualizado em ${new Date(c.updatedAt).toLocaleDateString("pt-BR")}` : "Sem anotações ainda"}
-        </span>
-        <button onClick={() => onSaveNotes(c.id, notes)} disabled={!dirty} style={{
-          display: "flex", alignItems: "center", gap: 5, background: dirty ? "#1F2937" : "#fff",
-          border: "1px solid #EAE7E0", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 600,
-          color: dirty ? "#fff" : "#B3ADA0", cursor: dirty ? "pointer" : "not-allowed",
-        }}>
-          Salvar anotação
-        </button>
-      </div>
+      ))}
     </div>
   );
 }
