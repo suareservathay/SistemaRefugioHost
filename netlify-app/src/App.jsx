@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CalendarDays, CalendarPlus, Brush, Wrench, LogIn, LogOut, MoreHorizontal, Home, ClipboardCheck, Wallet, TrendingUp, TrendingDown, ListChecks, CheckCircle2, Circle, X, Package, Minus, Search, Link2 } from "lucide-react";
-import { storage } from "./storage";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CalendarDays, CalendarPlus, Brush, Wrench, LogIn, LogOut, MoreHorizontal, Home, ClipboardCheck, Wallet, TrendingUp, TrendingDown, ListChecks, CheckCircle2, Circle, X, Package, Minus, Search, RefreshCw, Link2, Loader2, ImagePlus } from "lucide-react";
 
 // ---------- Config ----------
 const PROPERTIES = [
@@ -26,12 +25,13 @@ const ESTOQUE_KEY = "lista-estoque";
 const ESTOQUE_SEED_VERSION_KEY = "estoque-seed-versao";
 const CURRENT_ESTOQUE_SEED_VERSION = 4;
 
-const ESTOQUE_CATEGORIAS = [
+const ESTOQUE_CATEGORIAS_BASE = [
   { id: "enxoval", label: "Enxoval" },
   { id: "limpeza", label: "Limpeza" },
   { id: "higiene", label: "Reposições" },
-  { id: "outros", label: "Outros" },
 ];
+const ESTOQUE_CATEGORIA_OUTROS = { id: "outros", label: "Outros" };
+const CUSTOM_ESTOQUE_CATEGORIAS_KEY = "categorias-estoque-personalizadas";
 
 // Locais de controle para itens de enxoval: cada chalé + a lavanderia (roupa suja/lavando).
 const LAVANDERIA = { id: "lavanderia", name: "Lavanderia", color: "#475569", soft: "#EEF1F5" };
@@ -149,6 +149,7 @@ export default function App() {
   const [events, setEvents] = useState({});
   const [reservas, setReservas] = useState({});
   const [customTaskTypes, setCustomTaskTypes] = useState([]);
+  const [customEstoqueCategorias, setCustomEstoqueCategorias] = useState([]);
   const [tab, setTab] = useState("calendario");
   const [transacoes, setTransacoes] = useState([]);
   const [transacaoModal, setTransacaoModal] = useState(null);
@@ -159,6 +160,8 @@ export default function App() {
   const [visibleProps, setVisibleProps] = useState(() => PROPERTIES.map(p => p.id));
   const [showAddTask, setShowAddTask] = useState(false);
   const [reservaModal, setReservaModal] = useState(null);
+  const [showImportPrint, setShowImportPrint] = useState(false);
+  const [showImportPagamentos, setShowImportPagamentos] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = useCallback((msg) => {
@@ -169,23 +172,27 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [evRes, resRes, verRes, customRes, transRes, transVerRes, tarefasRes, estoqueRes, estoqueVerRes, concRes] = await Promise.allSettled([
-          storage.get(EVENTS_KEY, false),
-          storage.get(RESERVAS_KEY, false),
-          storage.get(SEED_VERSION_KEY, false),
-          storage.get(CUSTOM_TASK_TYPES_KEY, false),
-          storage.get(TRANSACOES_KEY, false),
-          storage.get(TRANSACOES_SEED_VERSION_KEY, false),
-          storage.get(TAREFAS_KEY, false),
-          storage.get(ESTOQUE_KEY, false),
-          storage.get(ESTOQUE_SEED_VERSION_KEY, false),
-          storage.get(CONCORRENTES_KEY, false),
+        const [evRes, resRes, verRes, customRes, transRes, transVerRes, tarefasRes, estoqueRes, estoqueVerRes, concRes, customCatRes] = await Promise.allSettled([
+          window.storage.get(EVENTS_KEY, false),
+          window.storage.get(RESERVAS_KEY, false),
+          window.storage.get(SEED_VERSION_KEY, false),
+          window.storage.get(CUSTOM_TASK_TYPES_KEY, false),
+          window.storage.get(TRANSACOES_KEY, false),
+          window.storage.get(TRANSACOES_SEED_VERSION_KEY, false),
+          window.storage.get(TAREFAS_KEY, false),
+          window.storage.get(ESTOQUE_KEY, false),
+          window.storage.get(ESTOQUE_SEED_VERSION_KEY, false),
+          window.storage.get(CONCORRENTES_KEY, false),
+          window.storage.get(CUSTOM_ESTOQUE_CATEGORIAS_KEY, false),
         ]);
         if (evRes.status === "fulfilled" && evRes.value) {
           setEvents(JSON.parse(evRes.value.value));
         }
         if (customRes.status === "fulfilled" && customRes.value) {
           setCustomTaskTypes(JSON.parse(customRes.value.value));
+        }
+        if (customCatRes.status === "fulfilled" && customCatRes.value) {
+          setCustomEstoqueCategorias(JSON.parse(customCatRes.value.value));
         }
         if (tarefasRes.status === "fulfilled" && tarefasRes.value) {
           setTarefas(JSON.parse(tarefasRes.value.value));
@@ -212,8 +219,8 @@ export default function App() {
             const already = new Set(currentEstoque.map(i => i.id));
             const toAdd = ESTOQUE_SEED.filter(i => !already.has(i.id));
             currentEstoque = [...currentEstoque, ...toAdd];
-            storage.set(ESTOQUE_KEY, JSON.stringify(currentEstoque), false).catch(() => {});
-            storage.set(ESTOQUE_SEED_VERSION_KEY, String(CURRENT_ESTOQUE_SEED_VERSION), false).catch(() => {});
+            window.storage.set(ESTOQUE_KEY, JSON.stringify(currentEstoque), false).catch(() => {});
+            window.storage.set(ESTOQUE_SEED_VERSION_KEY, String(CURRENT_ESTOQUE_SEED_VERSION), false).catch(() => {});
           }
           setEstoque(currentEstoque);
         }
@@ -224,8 +231,8 @@ export default function App() {
             const already = new Set(currentTrans.map(t => t.id));
             const toAdd = SEED_TRANSACOES.filter(t => !already.has(t.id));
             currentTrans = [...currentTrans, ...toAdd];
-            storage.set(TRANSACOES_KEY, JSON.stringify(currentTrans), false).catch(() => {});
-            storage.set(TRANSACOES_SEED_VERSION_KEY, String(CURRENT_TRANSACOES_SEED_VERSION), false).catch(() => {});
+            window.storage.set(TRANSACOES_KEY, JSON.stringify(currentTrans), false).catch(() => {});
+            window.storage.set(TRANSACOES_SEED_VERSION_KEY, String(CURRENT_TRANSACOES_SEED_VERSION), false).catch(() => {});
           }
           setTransacoes(currentTrans);
         }
@@ -244,7 +251,7 @@ export default function App() {
             current = { ...current, [pid]: [...(current[pid] || []), ...toAdd] };
           }
           changed = true;
-          storage.set(SEED_VERSION_KEY, String(CURRENT_SEED_VERSION), false).catch(() => {});
+          window.storage.set(SEED_VERSION_KEY, String(CURRENT_SEED_VERSION), false).catch(() => {});
         } else {
           for (const pid of Object.keys(SEED_RESERVAS)) {
             if (!current[pid] || current[pid].length === 0) {
@@ -263,26 +270,26 @@ export default function App() {
           });
         }
         setReservas(current);
-        if (changed) storage.set(RESERVAS_KEY, JSON.stringify(current), false).catch(() => {});
+        if (changed) window.storage.set(RESERVAS_KEY, JSON.stringify(current), false).catch(() => {});
       } catch (e) {}
     })();
   }, []);
 
   const persistEvents = useCallback(async (next) => {
     setEvents(next);
-    try { await storage.set(EVENTS_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(EVENTS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
   const persistCustomTypes = useCallback(async (next) => {
     setCustomTaskTypes(next);
-    try { await storage.set(CUSTOM_TASK_TYPES_KEY, JSON.stringify(next), false); }
+    try { await window.storage.set(CUSTOM_TASK_TYPES_KEY, JSON.stringify(next), false); }
     catch (e) {}
   }, []);
 
   const persistTransacoes = useCallback(async (next) => {
     setTransacoes(next);
-    try { await storage.set(TRANSACOES_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(TRANSACOES_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -297,10 +304,34 @@ export default function App() {
   function removeTransacao(id) {
     persistTransacoes(transacoes.filter(t => t.id !== id));
   }
+  async function importarTransacoes(novasTransacoes) {
+    const comIds = novasTransacoes.map(t => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...t }));
+    const ok = await persistTransacoes([...transacoes, ...comIds]);
+    if (ok !== false) showToast(`${novasTransacoes.length} lançamento(s) importado(s).`);
+  }
+  function syncTransacaoDaReserva(reservaId, pid, guestName, amount, dateKey) {
+    const existente = transacoes.find(t => t.reservaId === reservaId);
+    if (amount && amount > 0) {
+      if (existente) {
+        persistTransacoes(transacoes.map(t => t.id === existente.id
+          ? { ...t, propertyId: pid, amount, date: dateKey, description: `Repasse Airbnb - ${guestName}` }
+          : t));
+      } else {
+        const nova = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          kind: "receita", propertyId: pid, description: `Repasse Airbnb - ${guestName}`,
+          amount, date: dateKey, reservaId,
+        };
+        persistTransacoes([...transacoes, nova]);
+      }
+    } else if (existente) {
+      persistTransacoes(transacoes.filter(t => t.id !== existente.id));
+    }
+  }
 
   const persistTarefas = useCallback(async (next) => {
     setTarefas(next);
-    try { await storage.set(TAREFAS_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(TAREFAS_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -317,7 +348,7 @@ export default function App() {
 
   const persistEstoque = useCallback(async (next) => {
     setEstoque(next);
-    try { await storage.set(ESTOQUE_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(ESTOQUE_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
@@ -334,29 +365,122 @@ export default function App() {
   function removeEstoqueItem(id) {
     persistEstoque(estoque.filter(i => i.id !== id));
   }
+  function changeEstoqueItemCategory(id, newCategory) {
+    persistEstoque(estoque.map(i => {
+      if (i.id !== id) return i;
+      const locs = locationsFor(newCategory);
+      const quantities = Object.fromEntries(locs.map(l => [l.id, i.quantities[l.id] || 0]));
+      return { ...i, category: newCategory, quantities };
+    }));
+  }
+  function moveEstoqueItem(id, direction) {
+    const idx = estoque.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    const cat = estoque[idx].category;
+    let swapIdx = -1;
+    if (direction === -1) {
+      for (let k = idx - 1; k >= 0; k--) if (estoque[k].category === cat) { swapIdx = k; break; }
+    } else {
+      for (let k = idx + 1; k < estoque.length; k++) if (estoque[k].category === cat) { swapIdx = k; break; }
+    }
+    if (swapIdx === -1) return;
+    const next = [...estoque];
+    [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+    persistEstoque(next);
+  }
+
+  const persistCustomEstoqueCategorias = useCallback(async (next) => {
+    setCustomEstoqueCategorias(next);
+    try { await window.storage.set(CUSTOM_ESTOQUE_CATEGORIAS_KEY, JSON.stringify(next), false); }
+    catch (e) {}
+  }, []);
+  function addEstoqueCategoria(label) {
+    const clean = label.trim();
+    if (!clean) return null;
+    const id = slugify(clean);
+    const jaExiste = [...ESTOQUE_CATEGORIAS_BASE, ...customEstoqueCategorias, ESTOQUE_CATEGORIA_OUTROS].some(c => c.id === id);
+    if (jaExiste) return id;
+    persistCustomEstoqueCategorias([...customEstoqueCategorias, { id, label: clean }]);
+    return id;
+  }
 
   const persistConcorrentes = useCallback(async (next) => {
     setConcorrentes(next);
-    try { await storage.set(CONCORRENTES_KEY, JSON.stringify(next), false); return true; }
+    try { await window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false); return true; }
     catch (e) { showToast("Não consegui salvar. Tente de novo."); return false; }
   }, [showToast]);
 
   async function addConcorrente(url, label) {
-    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, label: label || "", notes: "", updatedAt: null };
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, label: label || "", analysis: null, updatedAt: null, status: "idle" };
     const next = [...concorrentes, item];
-    return persistConcorrentes(next);
+    const ok = await persistConcorrentes(next);
+    if (ok) analisarConcorrente(item.id, [...next]);
+    return ok;
   }
   function removeConcorrente(id) {
     persistConcorrentes(concorrentes.filter(c => c.id !== id));
   }
-  function updateConcorrenteNotes(id, notes) {
-    persistConcorrentes(concorrentes.map(c => c.id === id ? { ...c, notes, updatedAt: new Date().toISOString() } : c));
+
+  async function analisarConcorrente(id, listAtual) {
+    const list = listAtual || concorrentes;
+    setConcorrentes(list.map(c => c.id === id ? { ...c, status: "loading" } : c));
+    const alvo = list.find(c => c.id === id);
+    if (!alvo) return;
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: `Pesquise na web informações públicas sobre este anúncio do Airbnb: ${alvo.url}\n\n` +
+              `Se não conseguir acessar a página diretamente, busque pelo nome/local do anúncio e por anúncios similares na região para estimar o padrão. ` +
+              `Escreva uma análise curta e direta (use tópicos), cobrindo: ` +
+              `1) Estratégia do anúncio (o que ele destaca, diferenciais); ` +
+              `2) Padrão de precificação (faixa de preço por noite, se encontrar); ` +
+              `3) Estilo de descrição/fotos (o que parece funcionar); ` +
+              `4) Avaliação geral e como isso se compara ao preço de mercado da região. ` +
+              `Seja honesto se a informação pública for limitada. Responda em português, de forma objetiva.`,
+          }],
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+        }),
+      });
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        throw new Error(`Resposta inválida da API (status ${response.status})`);
+      }
+      if (!response.ok) {
+        const apiMsg = data?.error?.message || `Erro ${response.status}`;
+        throw new Error(apiMsg);
+      }
+      const text = (data.content || [])
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("\n\n")
+        .trim();
+      const finalText = text || "A busca não retornou texto — pode ser que o modelo não tenha encontrado nada relevante.";
+      setConcorrentes(prev => {
+        const next = prev.map(c => c.id === id ? { ...c, analysis: finalText, status: "done", errorMsg: null, updatedAt: new Date().toISOString() } : c);
+        window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false).catch(() => {});
+        return next;
+      });
+    } catch (e) {
+      setConcorrentes(prev => {
+        const next = prev.map(c => c.id === id ? { ...c, status: "error", errorMsg: e?.message || String(e) } : c);
+        window.storage.set(CONCORRENTES_KEY, JSON.stringify(next), false).catch(() => {});
+        return next;
+      });
+    }
   }
 
   const persistReservas = useCallback(async (next) => {
     setReservas(next);
-    try { await storage.set(RESERVAS_KEY, JSON.stringify(next), false); }
-    catch (e) { showToast("Não consegui salvar a reserva."); }
+    try { await window.storage.set(RESERVAS_KEY, JSON.stringify(next), false); return true; }
+    catch (e) { showToast("Não consegui salvar a reserva."); return false; }
   }, [showToast]);
 
   const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -441,21 +565,33 @@ export default function App() {
     persistEvents({ ...events, [pid]: list.filter(t => t.id !== id) });
   }
   function saveReserva(pid, data, editId) {
+    const { amount, ...reservaData } = data;
     if (editId) {
       const next = { ...reservas };
       for (const key of Object.keys(next)) next[key] = (next[key] || []).filter(r => r.id !== editId);
-      next[pid] = [...(next[pid] || []), { id: editId, ...data }];
+      next[pid] = [...(next[pid] || []), { id: editId, ...reservaData }];
       persistReservas(next);
+      syncTransacaoDaReserva(editId, pid, reservaData.guestName, amount, reservaData.end);
       showToast("Reserva atualizada.");
     } else {
       const list = reservas[pid] || [];
-      persistReservas({ ...reservas, [pid]: [...list, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...data }] });
+      const newId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      persistReservas({ ...reservas, [pid]: [...list, { id: newId, ...reservaData }] });
+      syncTransacaoDaReserva(newId, pid, reservaData.guestName, amount, reservaData.end);
       showToast("Reserva adicionada.");
     }
   }
   function removeReserva(pid, id) {
     const list = reservas[pid] || [];
     persistReservas({ ...reservas, [pid]: list.filter(r => r.id !== id) });
+    const vinculada = transacoes.find(t => t.reservaId === id);
+    if (vinculada) persistTransacoes(transacoes.filter(t => t.id !== vinculada.id));
+  }
+  async function importarReservas(pid, novasReservas) {
+    const list = reservas[pid] || [];
+    const comIds = novasReservas.map(r => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...r }));
+    const ok = await persistReservas({ ...reservas, [pid]: [...list, ...comIds] });
+    if (ok !== false) showToast(`${novasReservas.length} reserva(s) importada(s).`);
   }
 
   const dayTasks = tasksOnDay(selectedDay);
@@ -585,7 +721,10 @@ export default function App() {
                   <div key={pid} style={{ display: "grid", gridTemplateColumns: "repeat(14, 1fr)", gap: 0, height: 24, marginBottom: 3, position: "relative" }}>
                     {segs.map((seg, si) => (
                       <button key={si} className="bar-seg"
-                        onClick={() => setReservaModal({ mode: "edit", reserva: { ...seg.reservation, propertyId: pid } })}
+                        onClick={() => {
+                          const vinculada = transacoes.find(t => t.reservaId === seg.reservation.id);
+                          setReservaModal({ mode: "edit", reserva: { ...seg.reservation, propertyId: pid, amount: vinculada?.amount ?? null } });
+                        }}
                         style={{
                           gridColumn: `${seg.startCol} / ${seg.endColExclusive}`,
                           background: propColor(pid), color: "#fff", border: "none", cursor: "pointer",
@@ -622,6 +761,14 @@ export default function App() {
               Chegada {CHECKIN_HOUR} · Saída {CHECKOUT_HOUR}
             </div>
           </div>
+
+          <button onClick={() => setShowImportPrint(true)} style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+            padding: "10px", borderRadius: 10, border: "1px dashed #D8D3C7", background: "#FAF9F7",
+            color: "#6B6558", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginBottom: 16,
+          }}>
+            <ImagePlus size={15} /> Importar print do calendário do Airbnb
+          </button>
 
           {/* Selected day detail */}
           <div style={{ borderTop: "1px solid #EEEBE4", paddingTop: 14 }}>
@@ -683,11 +830,20 @@ export default function App() {
         )}
 
         {tab === "estoque" && (
-          <EstoqueTab estoque={estoque} onAdd={addEstoqueItem} onChangeQty={updateEstoqueQty} onRemove={removeEstoqueItem} />
+          <EstoqueTab
+            estoque={estoque}
+            categorias={[...ESTOQUE_CATEGORIAS_BASE, ...customEstoqueCategorias, ESTOQUE_CATEGORIA_OUTROS]}
+            onAdd={addEstoqueItem}
+            onChangeQty={updateEstoqueQty}
+            onRemove={removeEstoqueItem}
+            onChangeCategory={changeEstoqueItemCategory}
+            onMove={moveEstoqueItem}
+            onAddCategoria={addEstoqueCategoria}
+          />
         )}
 
         {tab === "concorrentes" && (
-          <ConcorrentesTab concorrentes={concorrentes} onAdd={addConcorrente} onRemove={removeConcorrente} onSaveNotes={updateConcorrenteNotes} />
+          <ConcorrentesTab concorrentes={concorrentes} onAdd={addConcorrente} onRemove={removeConcorrente} onRefresh={(id) => analisarConcorrente(id)} />
         )}
 
         {tab === "financas" && (
@@ -696,6 +852,7 @@ export default function App() {
             onAdd={() => setTransacaoModal({ mode: "create" })}
             onEdit={(t) => setTransacaoModal({ mode: "edit", transacao: t })}
             onRemove={removeTransacao}
+            onImportPrint={() => setShowImportPagamentos(true)}
             propName={propName}
             propColor={propColor}
             propSoft={propSoft}
@@ -739,6 +896,20 @@ export default function App() {
             const ok = editId ? await updateTransacao(editId, data) : await addTransacao(data);
             if (ok) { setTransacaoModal(null); showToast(editId ? "Lançamento atualizado." : "Lançamento salvo."); }
           }}
+        />
+      )}
+
+      {showImportPagamentos && (
+        <ImportarPagamentosModal
+          onClose={() => setShowImportPagamentos(false)}
+          onConfirm={async (list) => { await importarTransacoes(list); setShowImportPagamentos(false); }}
+        />
+      )}
+
+      {showImportPrint && (
+        <ImportarPrintModal
+          onClose={() => setShowImportPrint(false)}
+          onConfirm={async (pid, list) => { await importarReservas(pid, list); setShowImportPrint(false); }}
         />
       )}
 
@@ -807,16 +978,417 @@ function ModalShell({ title, onClose, children }) {
   );
 }
 
+function ImportarPagamentosModal({ onClose, onConfirm }) {
+  const [step, setStep] = useState("upload");
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [fileData, setFileData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [parsed, setParsed] = useState([]); // [{description, date, amount, kind, propertyId, include}]
+
+  function handleFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      const [, mediaType, base64] = result.match(/^data:(.+);base64,(.+)$/) || [];
+      if (base64) setFileData({ base64, mediaType, previewUrl: result });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleAnalyze() {
+    if (!fileData) return;
+    setStep("loading");
+    setErrorMsg("");
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: fileData.mediaType, data: fileData.base64 } },
+              {
+                type: "text",
+                text: `Este print mostra pagamentos/repasses recebidos do Airbnb (tela de "Ganhos" ou histórico de transações). ` +
+                  `Identifique cada lançamento visível: a data (no formato DD/MM, sem o ano) e o valor recebido. ` +
+                  `Se houver um nome de hóspede associado, inclua como descrição; senão use "Recebimento Airbnb". ` +
+                  `Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois, neste formato exato: ` +
+                  `[{"description":"Nome ou Recebimento Airbnb","date":"DD/MM","amount":123.45}]. Se não encontrar nada, responda [].`,
+              },
+            ],
+          }],
+        }),
+      });
+      let data;
+      try { data = await response.json(); }
+      catch (e) { throw new Error(`Resposta inválida da API (status ${response.status})`); }
+      if (!response.ok) throw new Error(data?.error?.message || `Erro ${response.status}`);
+
+      const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
+      const cleaned = text.replace(/^```json\s*|^```\s*|```$/g, "").trim();
+      let arr;
+      try { arr = JSON.parse(cleaned); }
+      catch (e) { throw new Error("Não consegui interpretar a resposta. Tente uma imagem mais nítida."); }
+      if (!Array.isArray(arr) || arr.length === 0) throw new Error("Não encontrei nenhum lançamento nessa imagem.");
+
+      const results = arr
+        .filter(r => r && r.date && r.amount)
+        .map(r => {
+          const [d, m] = String(r.date).split("/").map(Number);
+          const dateKey = (d && m) ? `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : "";
+          return {
+            description: r.description || "Recebimento Airbnb",
+            date: dateKey,
+            amount: Number(r.amount),
+            kind: "receita",
+            propertyId: null,
+            include: true,
+          };
+        })
+        .filter(r => r.date);
+      setParsed(results);
+      setStep("review");
+    } catch (e) {
+      setErrorMsg(e?.message || String(e));
+      setStep("error");
+    }
+  }
+
+  function updateParsed(idx, field, value) {
+    setParsed(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+  function removeParsed(idx) {
+    setParsed(prev => prev.filter((_, i) => i !== idx));
+  }
+  function handleConfirm() {
+    const toSave = parsed.filter(r => r.include && r.description && r.date && r.amount > 0)
+      .map(({ description, date, amount, kind, propertyId }) => ({ description, date, amount, kind, propertyId }));
+    if (toSave.length === 0) return;
+    onConfirm(toSave);
+  }
+
+  return (
+    <ModalShell title="Importar print de pagamentos" onClose={onClose}>
+      {(step === "upload" || step === "loading") && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <FieldLabel>Ano dos lançamentos</FieldLabel>
+            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} style={inputStyle} />
+          </div>
+          <div>
+            <FieldLabel>Print da tela de ganhos/pagamentos do Airbnb</FieldLabel>
+            {fileData ? (
+              <img src={fileData.previewUrl} alt="Preview" style={{ width: "100%", borderRadius: 10, border: "1px solid #EAE7E0" }} />
+            ) : (
+              <label style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                border: "1.5px dashed #D8D3C7", borderRadius: 10, padding: "20px 10px",
+                cursor: "pointer", fontSize: 13, color: "#6B6558",
+              }}>
+                <ImagePlus size={16} />
+                Escolher imagem
+                <input type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={(e) => handleFile(e.target.files?.[0])} />
+              </label>
+            )}
+          </div>
+          <p style={{ fontSize: 11, color: "#B3ADA0", lineHeight: 1.5, margin: 0 }}>
+            A próxima tela deixa você conferir e corrigir imóvel, descrição e valores antes de salvar.
+          </p>
+          <button className="btn-primary" disabled={!fileData || step === "loading"} onClick={handleAnalyze}
+            style={{
+              padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600,
+              cursor: (!fileData || step === "loading") ? "not-allowed" : "pointer", opacity: (!fileData || step === "loading") ? 0.5 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+            {step === "loading" ? <Loader2 size={16} className="spin" /> : <ImagePlus size={16} />}
+            {step === "loading" ? "Analisando imagem..." : "Analisar imagem"}
+          </button>
+        </div>
+      )}
+
+      {step === "error" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontSize: 13, color: "#B4231F" }}>{errorMsg}</div>
+          <button className="btn-primary" onClick={() => setStep("upload")}
+            style={{ padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+            Tentar de novo
+          </button>
+        </div>
+      )}
+
+      {step === "review" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p style={{ fontSize: 12, color: "#6B6558", margin: 0 }}>
+            Confira a descrição, o imóvel, a data e o valor antes de salvar.
+          </p>
+          {parsed.map((r, idx) => (
+            <div key={idx} style={{ padding: 10, borderRadius: 10, border: "1px solid #EAE7E0", opacity: r.include ? 1 : 0.45 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <input type="checkbox" checked={r.include} onChange={(e) => updateParsed(idx, "include", e.target.checked)} />
+                <input value={r.description} onChange={(e) => updateParsed(idx, "description", e.target.value)}
+                  style={{ ...inputStyle, flex: 1, padding: "6px 8px" }} />
+                <button onClick={() => removeParsed(idx)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7" }}>
+                  <X size={15} />
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <select value={r.propertyId || ""} onChange={(e) => updateParsed(idx, "propertyId", e.target.value || null)}
+                  style={{ ...inputStyle, flex: 1, fontSize: 12, padding: "6px 8px" }}>
+                  <option value="">Sem imóvel específico</option>
+                  {PROPERTIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <input type="date" value={r.date} onChange={(e) => updateParsed(idx, "date", e.target.value)}
+                  style={{ ...inputStyle, flex: 1, fontSize: 12, padding: "6px 8px" }} />
+                <input value={r.amount} onChange={(e) => updateParsed(idx, "amount", Number(e.target.value))}
+                  type="number" step="0.01" style={{ ...inputStyle, width: 90, fontSize: 12, padding: "6px 8px" }} />
+              </div>
+            </div>
+          ))}
+          {parsed.length === 0 && (
+            <div style={{ fontSize: 12.5, color: "#B3ADA0", textAlign: "center", padding: "10px 0" }}>
+              Nenhum lançamento restante pra importar.
+            </div>
+          )}
+          <button className="btn-primary" disabled={parsed.filter(r => r.include).length === 0} onClick={handleConfirm}
+            style={{
+              padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginTop: 4,
+              cursor: parsed.filter(r => r.include).length === 0 ? "not-allowed" : "pointer",
+              opacity: parsed.filter(r => r.include).length === 0 ? 0.5 : 1,
+            }}>
+            Salvar {parsed.filter(r => r.include).length} lançamento(s)
+          </button>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
+function ImportarPrintModal({ onClose, onConfirm }) {
+  const today = new Date();
+  const [step, setStep] = useState("upload"); // upload | loading | review | error
+  const [propertyId, setPropertyId] = useState(PROPERTIES[0].id);
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [year, setYear] = useState(today.getFullYear());
+  const [fileData, setFileData] = useState(null); // { base64, mediaType, previewUrl }
+  const [errorMsg, setErrorMsg] = useState("");
+  const [parsed, setParsed] = useState([]); // [{guestName, checkinDay, checkoutDay, include}]
+
+  function handleFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result; // data:image/png;base64,xxxx
+      const [, mediaType, base64] = result.match(/^data:(.+);base64,(.+)$/) || [];
+      if (base64) setFileData({ base64, mediaType, previewUrl: result });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleAnalyze() {
+    if (!fileData) return;
+    setStep("loading");
+    setErrorMsg("");
+    const monthName = MONTH_NAMES[month - 1];
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: fileData.mediaType, data: fileData.base64 } },
+              {
+                type: "text",
+                text: `Este print mostra o calendário de anúncios do Airbnb referente a ${monthName}. ` +
+                  `Identifique todas as reservas visíveis (barras coloridas com nome de hóspede sobre os dias). ` +
+                  `Para cada uma, retorne o dia de check-in e o dia de check-out (apenas o número do dia, de 1 a 31, sem o mês). ` +
+                  `Se o nome do hóspede aparecer cortado (ex.: "Ro..."), retorne exatamente como está escrito, sem completar ou inventar. ` +
+                  `Responda APENAS com um array JSON válido, sem markdown, sem texto antes ou depois, neste formato exato: ` +
+                  `[{"guestName":"Nome","checkinDay":N,"checkoutDay":N}]. Se não encontrar nenhuma reserva, responda [].`,
+              },
+            ],
+          }],
+        }),
+      });
+      let data;
+      try { data = await response.json(); }
+      catch (e) { throw new Error(`Resposta inválida da API (status ${response.status})`); }
+      if (!response.ok) throw new Error(data?.error?.message || `Erro ${response.status}`);
+
+      const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
+      const cleaned = text.replace(/^```json\s*|^```\s*|```$/g, "").trim();
+      let arr;
+      try { arr = JSON.parse(cleaned); }
+      catch (e) { throw new Error("Não consegui interpretar a resposta. Tente uma imagem mais nítida."); }
+      if (!Array.isArray(arr) || arr.length === 0) throw new Error("Não encontrei nenhuma reserva nessa imagem.");
+
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const toDateKey = (day) => `${year}-${String(month).padStart(2, "0")}-${String(Math.min(Math.max(day, 1), daysInMonth)).padStart(2, "0")}`;
+      const results = arr
+        .filter(r => r && r.guestName && r.checkinDay && r.checkoutDay)
+        .map(r => ({
+          guestName: String(r.guestName).trim(),
+          start: toDateKey(Number(r.checkinDay)),
+          end: toDateKey(Number(r.checkoutDay)),
+          include: true,
+        }));
+      setParsed(results);
+      setStep("review");
+    } catch (e) {
+      setErrorMsg(e?.message || String(e));
+      setStep("error");
+    }
+  }
+
+  function updateParsed(idx, field, value) {
+    setParsed(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+  function removeParsed(idx) {
+    setParsed(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleConfirm() {
+    const toSave = parsed.filter(r => r.include && r.guestName && r.start && r.end && r.end > r.start)
+      .map(({ guestName, start, end }) => ({ guestName, start, end }));
+    if (toSave.length === 0) return;
+    onConfirm(propertyId, toSave);
+  }
+
+  return (
+    <ModalShell title="Importar print do Airbnb" onClose={onClose}>
+      {(step === "upload" || step === "loading") && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <FieldLabel>Imóvel</FieldLabel>
+            <div style={{ display: "flex", gap: 8 }}>
+              {PROPERTIES.map(p => (
+                <button key={p.id} onClick={() => setPropertyId(p.id)}
+                  style={{
+                    flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    border: `1.5px solid ${propertyId === p.id ? p.color : "#EAE7E0"}`,
+                    background: propertyId === p.id ? p.soft : "#fff",
+                    color: propertyId === p.id ? p.color : "#6B6558",
+                  }}>{p.name}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <FieldLabel>Mês do print</FieldLabel>
+              <select value={month} onChange={(e) => setMonth(Number(e.target.value))} style={inputStyle}>
+                {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+            </div>
+            <div style={{ width: 100 }}>
+              <FieldLabel>Ano</FieldLabel>
+              <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} style={inputStyle} />
+            </div>
+          </div>
+          <div>
+            <FieldLabel>Print do calendário</FieldLabel>
+            {fileData ? (
+              <img src={fileData.previewUrl} alt="Preview" style={{ width: "100%", borderRadius: 10, border: "1px solid #EAE7E0" }} />
+            ) : (
+              <label style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                border: "1.5px dashed #D8D3C7", borderRadius: 10, padding: "20px 10px",
+                cursor: "pointer", fontSize: 13, color: "#6B6558",
+              }}>
+                <ImagePlus size={16} />
+                Escolher imagem
+                <input type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={(e) => handleFile(e.target.files?.[0])} />
+              </label>
+            )}
+          </div>
+          <p style={{ fontSize: 11, color: "#B3ADA0", lineHeight: 1.5, margin: 0 }}>
+            A leitura da imagem pode errar nomes cortados ou datas em prints de baixa qualidade — a próxima tela
+            deixa você conferir e corrigir tudo antes de salvar.
+          </p>
+          <button className="btn-primary" disabled={!fileData || step === "loading"} onClick={handleAnalyze}
+            style={{
+              padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600,
+              cursor: (!fileData || step === "loading") ? "not-allowed" : "pointer", opacity: (!fileData || step === "loading") ? 0.5 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+            {step === "loading" ? <Loader2 size={16} className="spin" /> : <ImagePlus size={16} />}
+            {step === "loading" ? "Analisando imagem..." : "Analisar imagem"}
+          </button>
+        </div>
+      )}
+
+      {step === "error" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontSize: 13, color: "#B4231F" }}>{errorMsg}</div>
+          <button className="btn-primary" onClick={() => setStep("upload")}
+            style={{ padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+            Tentar de novo
+          </button>
+        </div>
+      )}
+
+      {step === "review" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p style={{ fontSize: 12, color: "#6B6558", margin: 0 }}>
+            Confira antes de salvar — corrija nomes cortados e confirme as datas.
+          </p>
+          {parsed.map((r, idx) => (
+            <div key={idx} style={{ padding: 10, borderRadius: 10, border: "1px solid #EAE7E0", opacity: r.include ? 1 : 0.45 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <input type="checkbox" checked={r.include} onChange={(e) => updateParsed(idx, "include", e.target.checked)} />
+                <input value={r.guestName} onChange={(e) => updateParsed(idx, "guestName", e.target.value)}
+                  style={{ ...inputStyle, flex: 1, padding: "6px 8px" }} />
+                <button onClick={() => removeParsed(idx)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7" }}>
+                  <X size={15} />
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input type="date" value={r.start} onChange={(e) => updateParsed(idx, "start", e.target.value)}
+                  style={{ ...inputStyle, flex: 1, fontSize: 12, padding: "6px 8px" }} />
+                <input type="date" value={r.end} onChange={(e) => updateParsed(idx, "end", e.target.value)}
+                  style={{ ...inputStyle, flex: 1, fontSize: 12, padding: "6px 8px" }} />
+              </div>
+            </div>
+          ))}
+          {parsed.length === 0 && (
+            <div style={{ fontSize: 12.5, color: "#B3ADA0", textAlign: "center", padding: "10px 0" }}>
+              Nenhuma reserva restante pra importar.
+            </div>
+          )}
+          <button className="btn-primary" disabled={parsed.filter(r => r.include).length === 0} onClick={handleConfirm}
+            style={{
+              padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginTop: 4,
+              cursor: parsed.filter(r => r.include).length === 0 ? "not-allowed" : "pointer",
+              opacity: parsed.filter(r => r.include).length === 0 ? 0.5 : 1,
+            }}>
+            Salvar {parsed.filter(r => r.include).length} reserva(s) em {PROPERTIES.find(p => p.id === propertyId)?.name}
+          </button>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
 function AddReservaModal({ defaultDateKey, initial, onClose, onSave }) {
   const isEdit = !!initial;
   const [propertyId, setPropertyId] = useState(initial?.propertyId || PROPERTIES[0].id);
   const [guestName, setGuestName] = useState(initial?.guestName || "");
   const [start, setStart] = useState(initial?.start || defaultDateKey);
   const [end, setEnd] = useState(initial?.end || defaultDateKey);
+  const [amount, setAmount] = useState(initial?.amount != null ? String(initial.amount).replace(".", ",") : "");
 
   function handleSave() {
     if (!guestName.trim() || !start || !end || end <= start) return;
-    onSave(propertyId, { guestName: guestName.trim(), start, end }, isEdit ? initial.id : null);
+    const parsedAmount = amount.trim() ? Number(amount.replace(",", ".")) : null;
+    onSave(propertyId, { guestName: guestName.trim(), start, end, amount: parsedAmount }, isEdit ? initial.id : null);
   }
   const invalid = !guestName.trim() || !start || !end || end <= start;
 
@@ -850,6 +1422,13 @@ function AddReservaModal({ defaultDateKey, initial, onClose, onSave }) {
             <FieldLabel>Check-out ({CHECKOUT_HOUR})</FieldLabel>
             <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} style={inputStyle} />
           </div>
+        </div>
+        <div>
+          <FieldLabel>Valor recebido (R$, opcional)</FieldLabel>
+          <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" style={inputStyle} />
+          <p style={{ fontSize: 11, color: "#B3ADA0", margin: "5px 0 0" }}>
+            Se preencher, já lança sozinho em Finanças como receita na data de saída.
+          </p>
         </div>
         <button className="btn-primary" disabled={invalid} onClick={handleSave}
           style={{ padding: "12px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginTop: 4, cursor: invalid ? "not-allowed" : "pointer", opacity: invalid ? 0.5 : 1 }}>
@@ -1118,7 +1697,7 @@ function TarefaRow({ tarefa, onToggle, onRemove }) {
   );
 }
 
-function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
+function ConcorrentesTab({ concorrentes, onAdd, onRemove, onRefresh }) {
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -1147,13 +1726,14 @@ function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             cursor: (!url.trim() || adding) ? "not-allowed" : "pointer", opacity: (!url.trim() || adding) ? 0.5 : 1,
           }}>
-          <Plus size={15} /> Adicionar
+          {adding ? <Loader2 size={15} className="spin" /> : <Plus size={15} />}
+          {adding ? "Analisando..." : "Adicionar e analisar"}
         </button>
       </div>
 
       <p style={{ fontSize: 11, color: "#B3ADA0", lineHeight: 1.5, marginTop: -8, marginBottom: 18 }}>
-        Nesta versão o app só guarda o link e suas próprias anotações — a pesquisa automática por IA
-        só está disponível na versão de dentro do Claude, que tem acesso à busca na web embutida.
+        A análise é feita por busca na web — quando o Airbnb não expõe os dados publicamente, o resultado pode vir
+        limitado. Cadastre uma vez; depois use "Atualizar" em cada card para refazer a pesquisa.
       </p>
 
       {concorrentes.length === 0 && (
@@ -1164,60 +1744,68 @@ function ConcorrentesTab({ concorrentes, onAdd, onRemove, onSaveNotes }) {
       )}
 
       {concorrentes.map(c => (
-        <ConcorrenteCard key={c.id} concorrente={c} onRemove={onRemove} onSaveNotes={onSaveNotes} />
+        <div key={c.id} style={{ padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.label || "Concorrente"}</div>
+              <a href={c.url} target="_blank" rel="noreferrer" style={{
+                fontSize: 11, color: "#0F766E", display: "flex", alignItems: "center", gap: 4,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                <Link2 size={11} /> {c.url}
+              </a>
+            </div>
+            <button onClick={() => onRemove(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2, flexShrink: 0 }}>
+              <X size={16} />
+            </button>
+          </div>
+
+          {c.status === "loading" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8A8478", padding: "8px 0" }}>
+              <Loader2 size={14} className="spin" /> Pesquisando na web...
+            </div>
+          )}
+          {c.status === "error" && (
+            <div style={{ fontSize: 12, color: "#B4231F", padding: "6px 0" }}>
+              Não consegui concluir a análise{c.errorMsg ? `: ${c.errorMsg}` : "."} Tente atualizar.
+            </div>
+          )}
+          {c.analysis && c.status !== "loading" && (
+            <div style={{ fontSize: 12.5, color: "#1F2937", lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 8 }}>
+              {c.analysis}
+            </div>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 10.5, color: "#B3ADA0" }}>
+              {c.updatedAt ? `Atualizado em ${new Date(c.updatedAt).toLocaleDateString("pt-BR")}` : "Ainda não analisado"}
+            </span>
+            <button onClick={() => onRefresh(c.id)} disabled={c.status === "loading"} style={{
+              display: "flex", alignItems: "center", gap: 5, background: "none", border: "1px solid #EAE7E0",
+              borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 600, color: "#1F2937",
+              cursor: c.status === "loading" ? "not-allowed" : "pointer", opacity: c.status === "loading" ? 0.5 : 1,
+            }}>
+              <RefreshCw size={12} /> Atualizar
+            </button>
+          </div>
+        </div>
       ))}
     </div>
   );
 }
 
-function ConcorrenteCard({ concorrente: c, onRemove, onSaveNotes }) {
-  const [notes, setNotes] = useState(c.notes || "");
-  const dirty = notes !== (c.notes || "");
-
-  return (
-    <div style={{ padding: 12, borderRadius: 12, border: "1px solid #EAE7E0", marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.label || "Concorrente"}</div>
-          <a href={c.url} target="_blank" rel="noreferrer" style={{
-            fontSize: 11, color: "#0F766E", display: "flex", alignItems: "center", gap: 4,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            <Link2 size={11} /> {c.url}
-          </a>
-        </div>
-        <button onClick={() => onRemove(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2, flexShrink: 0 }}>
-          <X size={16} />
-        </button>
-      </div>
-
-      <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-        placeholder="Suas anotações: preço observado, diferenciais, fotos, o que parece funcionar..."
-        style={{ ...inputStyle, height: 80, resize: "vertical", marginBottom: 8 }} />
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 10.5, color: "#B3ADA0" }}>
-          {c.updatedAt ? `Atualizado em ${new Date(c.updatedAt).toLocaleDateString("pt-BR")}` : "Sem anotações ainda"}
-        </span>
-        <button onClick={() => onSaveNotes(c.id, notes)} disabled={!dirty} style={{
-          display: "flex", alignItems: "center", gap: 5, background: dirty ? "#1F2937" : "#fff",
-          border: "1px solid #EAE7E0", borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 600,
-          color: dirty ? "#fff" : "#B3ADA0", cursor: dirty ? "pointer" : "not-allowed",
-        }}>
-          Salvar anotação
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
+function EstoqueTab({ estoque, categorias, onAdd, onChangeQty, onRemove, onChangeCategory, onMove, onAddCategoria }) {
   const [novoItem, setNovoItem] = useState("");
-  const [novaCategoria, setNovaCategoria] = useState("enxoval");
-  const [openCats, setOpenCats] = useState(() => Object.fromEntries(ESTOQUE_CATEGORIAS.map(c => [c.id, true])));
+  const [novaCategoria, setNovaCategoria] = useState(categorias[0]?.id || "outros");
+  const [openCats, setOpenCats] = useState(() => Object.fromEntries(categorias.map(c => [c.id, true])));
+  const [showNovaCategoria, setShowNovaCategoria] = useState(false);
+  const [nomeNovaCategoria, setNomeNovaCategoria] = useState("");
 
   function toggleCat(id) {
-    setOpenCats(prev => ({ ...prev, [id]: !prev[id] }));
+    setOpenCats(prev => ({ ...prev, [id]: prev[id] === undefined ? false : !prev[id] }));
+  }
+  function isCatOpen(id) {
+    return openCats[id] === undefined ? true : openCats[id];
   }
 
   function handleAdd() {
@@ -1227,6 +1815,15 @@ function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
     setNovoItem("");
   }
 
+  function handleAddCategoria() {
+    const label = nomeNovaCategoria.trim();
+    if (!label) return;
+    const id = onAddCategoria(label);
+    if (id) setNovaCategoria(id);
+    setNomeNovaCategoria("");
+    setShowNovaCategoria(false);
+  }
+
   function totalOf(item) {
     return Object.values(item.quantities).reduce((s, n) => s + n, 0);
   }
@@ -1234,7 +1831,7 @@ function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
   return (
     <div style={{ padding: "14px 12px 24px" }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, overflowX: "auto" }}>
-        {ESTOQUE_CATEGORIAS.map(c => (
+        {categorias.map(c => (
           <button key={c.id} onClick={() => setNovaCategoria(c.id)}
             style={{
               padding: "6px 11px", borderRadius: 999, flexShrink: 0, fontSize: 12, fontWeight: 600, cursor: "pointer",
@@ -1243,11 +1840,34 @@ function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
               color: novaCategoria === c.id ? "#fff" : "#6B6558",
             }}>{c.label}</button>
         ))}
+        <button onClick={() => setShowNovaCategoria(v => !v)} style={{
+          padding: "6px 11px", borderRadius: 999, flexShrink: 0, fontSize: 12, fontWeight: 600, cursor: "pointer",
+          border: "1.5px dashed #D8D3C7", background: "#fff", color: "#6B6558",
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <Plus size={12} /> Categoria
+        </button>
       </div>
+
+      {showNovaCategoria && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <input value={nomeNovaCategoria} onChange={(e) => setNomeNovaCategoria(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddCategoria(); }}
+            placeholder="Nome da nova categoria (ex.: Manutenção)" style={{ ...inputStyle, flex: 1 }} autoFocus />
+          <button onClick={handleAddCategoria} disabled={!nomeNovaCategoria.trim()} className="btn-primary"
+            style={{
+              padding: "0 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600,
+              cursor: nomeNovaCategoria.trim() ? "pointer" : "not-allowed", opacity: nomeNovaCategoria.trim() ? 1 : 0.5,
+            }}>
+            Criar
+          </button>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <input value={novoItem} onChange={(e) => setNovoItem(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
-          placeholder={`Novo item de ${ESTOQUE_CATEGORIAS.find(c => c.id === novaCategoria).label.toLowerCase()}...`}
+          placeholder={`Novo item de ${(categorias.find(c => c.id === novaCategoria)?.label || "").toLowerCase()}...`}
           style={{ ...inputStyle, flex: 1 }} />
         <button onClick={handleAdd} disabled={!novoItem.trim()} className="btn-primary"
           style={{
@@ -1265,15 +1885,19 @@ function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
         </div>
       )}
 
-      {ESTOQUE_CATEGORIAS.map(cat => {
+      {categorias.map((cat, catIdx) => {
         const items = estoque.filter(i => i.category === cat.id);
         if (items.length === 0) return null;
-        const isOpen = openCats[cat.id];
+        const isOpen = isCatOpen(cat.id);
+        const isLastVisible = !categorias.slice(catIdx + 1).some(c => estoque.some(i => i.category === c.id));
         return (
-          <div key={cat.id} style={{ marginBottom: 14 }}>
+          <div key={cat.id} style={{
+            marginBottom: 32, paddingBottom: 20,
+            borderBottom: isLastVisible ? "none" : "1px solid #EEEBE4",
+          }}>
             <button onClick={() => toggleCat(cat.id)} style={{
               width: "100%", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
-              cursor: "pointer", padding: "6px 2px", marginBottom: isOpen ? 8 : 0,
+              cursor: "pointer", padding: "6px 2px", marginBottom: isOpen ? 12 : 0,
             }}>
               <ChevronRight size={16} color="#6B6558" style={{
                 transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", flexShrink: 0,
@@ -1281,8 +1905,11 @@ function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
               <span style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600 }}>{cat.label}</span>
               <span style={{ fontSize: 11, color: "#B3ADA0", fontWeight: 600 }}>({items.length})</span>
             </button>
-            {isOpen && items.map(item => (
-              <ItemRow key={item.id} item={item} onChangeQty={onChangeQty} onRemove={onRemove} total={totalOf(item)} />
+            {isOpen && items.map((item, i) => (
+              <ItemRow key={item.id} item={item} onChangeQty={onChangeQty} onRemove={onRemove}
+                total={totalOf(item)} categorias={categorias} onChangeCategory={onChangeCategory}
+                onMoveUp={i > 0 ? () => onMove(item.id, -1) : null}
+                onMoveDown={i < items.length - 1 ? () => onMove(item.id, 1) : null} />
             ))}
           </div>
         );
@@ -1291,15 +1918,29 @@ function EstoqueTab({ estoque, onAdd, onChangeQty, onRemove }) {
   );
 }
 
-function ItemRow({ item, onChangeQty, onRemove, total }) {
+function ItemRow({ item, onChangeQty, onRemove, total, categorias, onChangeCategory, onMoveUp, onMoveDown }) {
   const locations = locationsFor(item.category);
   return (
     <div style={{ padding: "10px 4px", borderBottom: "1px solid #EEEBE4" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <button onClick={onMoveUp} disabled={!onMoveUp} style={{
+            background: "none", border: "none", cursor: onMoveUp ? "pointer" : "default",
+            color: onMoveUp ? "#6B6558" : "#E5E1D8", padding: 0, lineHeight: 0.7,
+          }}>▲</button>
+          <button onClick={onMoveDown} disabled={!onMoveDown} style={{
+            background: "none", border: "none", cursor: onMoveDown ? "pointer" : "default",
+            color: onMoveDown ? "#6B6558" : "#E5E1D8", padding: 0, lineHeight: 0.7,
+          }}>▼</button>
+        </div>
         <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: total === 0 ? "#B4231F" : "#1F2937" }}>
           {item.name}
         </span>
         <span style={{ fontSize: 11, color: "#8A8478", fontWeight: 600 }}>Total: {total}</span>
+        <select value={item.category} onChange={(e) => onChangeCategory(item.id, e.target.value)}
+          style={{ fontSize: 10.5, color: "#6B6558", border: "1px solid #EAE7E0", borderRadius: 7, padding: "3px 4px", background: "#fff" }}>
+          {categorias.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
         <button onClick={() => onRemove(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#D8D3C7", padding: 2 }}>
           <X size={15} />
         </button>
@@ -1346,7 +1987,7 @@ function formatBRL(n) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function FinancasTab({ transacoes, onAdd, onEdit, onRemove, propName, propColor, propSoft }) {
+function FinancasTab({ transacoes, onAdd, onEdit, onRemove, onImportPrint, propName, propColor, propSoft }) {
   const [monthCursor, setMonthCursor] = useState(() => new Date());
   const monthKey = `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, "0")}`;
   const monthTransacoes = transacoes
@@ -1391,12 +2032,21 @@ function FinancasTab({ transacoes, onAdd, onEdit, onRemove, propName, propColor,
         <span style={{ fontSize: 17, fontWeight: 700, color: saldo >= 0 ? "#0F766E" : "#B4231F" }}>{formatBRL(saldo)}</span>
       </div>
 
-      <button onClick={onAdd} className="btn-primary" style={{
-        width: "100%", padding: "11px", borderRadius: 10, fontSize: 13.5, fontWeight: 600,
-        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 16,
-      }}>
-        <Plus size={15} /> Novo lançamento
-      </button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button onClick={onAdd} className="btn-primary" style={{
+          flex: 1, padding: "11px", borderRadius: 10, fontSize: 13.5, fontWeight: 600,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          <Plus size={15} /> Manual
+        </button>
+        <button onClick={onImportPrint} style={{
+          flex: 1, padding: "11px", borderRadius: 10, fontSize: 13.5, fontWeight: 600,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          border: "1.5px dashed #D8D3C7", background: "#FAF9F7", color: "#6B6558",
+        }}>
+          <ImagePlus size={15} /> Importar print
+        </button>
+      </div>
 
       {monthTransacoes.length === 0 && (
         <div style={{ textAlign: "center", color: "#B3ADA0", fontSize: 12.5, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
